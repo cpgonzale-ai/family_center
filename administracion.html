@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Center ERP - High Contrast UI</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #d4d4d8; border-radius: 20px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #a1a1aa; }
+        
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+        
+        @keyframes slide-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slide-up { animation: slide-up 0.4s ease-out forwards; }
+
+        /* Utilitario para inputs de alto contraste */
+        .input-high-contrast {
+            background-color: #ffffff;
+            border: 2px solid #d4d4d8; /* Zinc-300 */
+            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        }
+        .input-high-contrast:focus {
+            border-color: #eab308; /* Yellow-500 */
+            box-shadow: 0 0 0 4px rgba(234, 179, 8, 0.1);
+        }
+        
+        /* Patrón de fondo consistente */
+        .bg-grid-pattern {
+            background-image: linear-gradient(to right, rgba(24, 24, 27, 0.05) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(24, 24, 27, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+    </style>
+
+    <!-- Import Maps -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.344.0?external=react"
+        }
+    }
+    </script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-zinc-100 text-zinc-900 selection:bg-yellow-200">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { 
+            User, Lock, ShieldCheck, ShoppingBag, Box, ClipboardCheck, MapPinned, Bike, 
+            ArrowRight, Loader2, AlertOctagon, Settings, List, ShoppingCart, LogOut, 
+            Package, Clock, CheckCircle, Printer, MapPin, Search, Trash2, Plus, Users, 
+            Key, BarChart3, ChevronDown, ChevronRight, LayoutDashboard, Database,
+            TrendingUp, AlertTriangle, Store, Globe, Eye, Edit3, Power, X, ChevronsRight, 
+            ChevronsLeft, FileSpreadsheet, FileText, Minus, EyeOff, Check,
+            Filter, MoreVertical, UserPlus, Activity, KeyRound, Copy, RefreshCw, ShieldAlert,
+            Truck, Save, DollarSign, Mail, Shield, History, Info, AlertCircle, Menu, 
+            CreditCard, HelpCircle, Tag, Percent, Navigation, Calendar, UserCheck, FileBox
+        } from 'lucide-react';
+
+        // --- CONSTANTS & MOCK DATA ---
+        const AVAILABLE_PERMISSIONS = [
+        "MODULO_USUARIOS_CREAR", "MODULO_USUARIOS_ELIMINAR", "CONFIG_CAMPOS_MAESTROS",
+        "MODULO_ACCESO_BASIC", "REPORTES_EXPORTAR_EXCEL", "GESTION_STOCK_GLOBAL",
+        "APROBACION_PEDIDOS_CRITICOS", "LOGISTICA_RUTAS_AVANZADAS"
+        ];
+
+        const INITIAL_ROLES = [
+        { id: 1, name: 'Administrador del sistema', desc: 'Acceso total a configuración y seguridad.', status: 'ACTI', perms: AVAILABLE_PERMISSIONS },
+        { id: 2, name: 'Vendedor Externo', desc: 'Gestión comercial y pedidos.', status: 'ACTI', perms: ["MODULO_ACCESO_BASIC"] },
+        { id: 3, name: 'Preparador', desc: 'Operaciones de depósito y picking.', status: 'ACTI', perms: ["MODULO_ACCESO_BASIC"] },
+        { id: 4, name: 'Motorista', desc: 'Logística de última milla.', status: 'ACTI', perms: ["MODULO_ACCESO_BASIC"] }
+        ];
+
+        const INITIAL_USERS = [
+        { 
+            id: 1001, documentId: '4.500.123', name: 'Ing. Ana Martínez', email: 'a.martinez@familycenter.py', role: 'Administrador del sistema', status: 'ACTI', lastLogin: '2026-02-15 14:20',
+            history: [
+            { date: '2026-01-15 08:00:00', action: 'CREATE', user: 'system', desc: 'Alta de usuario root.' },
+            { date: '2026-02-15 14:20:10', action: 'LOGIN', user: 'ana.martinez', desc: 'Acceso desde IP 192.168.1.10' },
+            { date: '2026-02-16 09:15:22', action: 'UPDATE', user: 'root', desc: 'Actualización de permisos.' },
+            { date: '2026-02-16 09:20:05', action: 'PWD_RESET', user: 'root', desc: 'Solicitud de cambio de clave.' }
+            ]
+        },
+        { 
+            id: 1002, documentId: '5.100.888', name: 'Carlos Ruíz', email: 'c.ruiz@familycenter.py', role: 'Motorista', status: 'ACTI', lastLogin: '2026-02-15 10:15',
+            history: [{ date: '2026-01-20 09:00:00', action: 'CREATE', user: 'admin', desc: 'Registro logístico.' }]
+        }
+        ];
+
+        const INITIAL_ZONES = [
+        { id: 1, name: 'Asunción (Centro)', price: 20000, cities: ['Asunción'], status: 'ACTI' },
+        { id: 2, name: 'Asunción (Villamorra)', price: 25000, cities: ['Asunción'], status: 'ACTI' },
+        { id: 3, name: 'San Lorenzo', price: 30000, cities: ['San Lorenzo', 'Capiatá'], status: 'ACTI' },
+        { id: 4, name: 'Luque', price: 30000, cities: ['Luque'], status: 'ACTI' },
+        ];
+
+        const MOCK_REPORT_DATA = Array.from({ length: 50 }).map((_, i) => ({
+        id: 2000 + i,
+        date: `2026-02-${String((i % 28) + 1).padStart(2, '0')}`,
+        seller: `Vendedor ${String.fromCharCode(65 + (i % 5))}`,
+        client: `Cliente Generico ${i + 1}`,
+        product: i % 3 === 0 ? 'Samsung Galaxy A54' : 'Xiaomi Redmi Note 13',
+        qty: (i % 5) + 1,
+        total: ((i % 5) + 1) * 1500000,
+        status: i % 10 === 0 ? 'cancelled' : i % 2 === 0 ? 'delivered' : 'approved',
+        deliveryMan: `Moto ${String.fromCharCode(88 + (i % 3))}`, 
+        stockStatus: i % 7 === 0 ? 'No Disponible' : 'En Stock'
+        }));
+
+        // --- LOGIC HELPERS ---
+        const formatDate = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+        const generateSecurePassword = (length = 14) => {
+        const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+";
+        let retVal = "";
+        const values = new Uint32Array(length);
+        window.crypto.getRandomValues(values);
+        for (let i = 0; i < length; i++) retVal += charset.charAt(values[i] % charset.length);
+        return retVal;
+        };
+
+        // --- STYLED COMPONENTS (Shared) ---
+        const FIELD_CLASS = "w-full bg-white border-2 border-zinc-300 shadow-sm focus:border-yellow-500 focus:ring-4 focus:ring-yellow-500/10 hover:border-zinc-400 rounded-2xl pl-12 pr-5 py-4 font-bold text-zinc-900 outline-none transition-all placeholder:text-zinc-400";
+        const SELECT_CLASS = "w-full bg-white border-2 border-zinc-300 shadow-sm focus:border-yellow-500 focus:ring-4 focus:ring-yellow-500/10 hover:border-zinc-400 rounded-2xl pl-12 pr-10 py-4 font-bold text-zinc-900 outline-none appearance-none transition-all cursor-pointer";
+        const CARD_CLASS = "bg-white rounded-[3rem] border border-zinc-300 overflow-hidden shadow-sm";
+
+        const SimpleTooltip = ({ text, children }) => {
+        const [show, setShow] = useState(false);
+        return (
+            <div className="relative flex items-center cursor-help" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+            {children}
+            {show && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-zinc-900 text-white text-[10px] font-bold rounded-lg whitespace-nowrap shadow-xl z-50 animate-fade-in pointer-events-none">
+                {text}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900"></div>
+                </div>
+            )}
+            </div>
+        );
+        };
+
+        const AuditLogTable = ({ history }) => (
+        <div className="mt-0 border border-zinc-300 rounded-[2rem] overflow-hidden bg-white shadow-sm w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-zinc-100 text-[9px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-300">
+                <tr>
+                    <th className="px-6 py-4 border-r border-zinc-200">Timestamp</th>
+                    <th className="px-6 py-4 border-r border-zinc-200">Evento</th>
+                    <th className="px-6 py-4 border-r border-zinc-200">Actor</th>
+                    <th className="px-6 py-4">Detalle</th>
+                </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-200 font-medium text-zinc-700">
+                {history?.map((log, i) => (
+                    <tr key={i} className="hover:bg-yellow-50 transition-colors">
+                    <td className="px-6 py-4 font-mono text-[10px] whitespace-nowrap text-zinc-500 border-r border-zinc-100">{log.date}</td>
+                    <td className="px-6 py-4 border-r border-zinc-100">
+                        <span className={`px-2 py-0.5 rounded-full font-black text-[8px] uppercase border ${log.action === 'CREATE' ? 'bg-green-100 text-green-800 border-green-300' : log.action === 'LOGIN' ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-zinc-100 text-zinc-700 border-zinc-300'}`}>
+                        {log.action}
+                        </span>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-zinc-900 border-r border-zinc-100">{log.user}</td>
+                    <td className="px-6 py-4 text-zinc-600 max-w-[300px] truncate">{log.desc}</td>
+                    </tr>
+                )) || <tr><td colSpan="4" className="p-8 text-center italic text-zinc-400">Sin registros de auditoría.</td></tr>}
+                </tbody>
+            </table>
+            </div>
+        </div>
+        );
+
+        const UserEditorModal = ({ isOpen, onClose, mode, user, onSave }) => {
+        const [formData, setFormData] = useState({ 
+            documentId: '', name: '', email: '', role: 'Vendedor Externo', status: 'ACTI', 
+            password: '', confirmPassword: '', history: [] 
+        });
+        const [showPassword, setShowPassword] = useState(false);
+        const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+        const pwdPolicy = useMemo(() => ({
+            length: formData.password.length >= 8,
+            upper: /[A-Z]/.test(formData.password),
+            number: /[0-9]/.test(formData.password),
+            match: formData.password !== '' && formData.password === formData.confirmPassword
+        }), [formData.password, formData.confirmPassword]);
+
+        useEffect(() => {
+            if (user) setFormData({ ...user, password: '', confirmPassword: '' });
+            else setFormData({ documentId: '', name: '', email: '', role: 'Vendedor Externo', status: 'ACTI', password: '', confirmPassword: '', history: [] });
+            setShowPassword(false);
+            setShowConfirmPassword(false);
+        }, [user, isOpen]);
+
+        if (!isOpen) return null;
+
+        const canSubmit = mode === 'view' || (formData.name && formData.documentId && (mode === 'edit' || (pwdPolicy.length && pwdPolicy.match)));
+
+        return (
+            <div className="fixed inset-0 bg-zinc-900/40 backdrop-blur-xl z-[150] flex items-center justify-center p-4">
+            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl overflow-hidden border border-zinc-300 animate-fade-in flex flex-col max-h-[90vh]">
+                <div className="p-10 border-b border-zinc-200 flex justify-between items-center bg-zinc-50">
+                <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center text-yellow-500 shadow-xl shadow-zinc-900/10 border border-zinc-700">
+                    {mode === 'add' ? <UserPlus size={28}/> : <Shield size={28}/>}
+                    </div>
+                    <div>
+                    <h2 className="text-2xl font-black text-zinc-900 tracking-tight leading-none mb-1">
+                        {mode === 'add' ? 'Registrar Colaborador' : mode === 'edit' ? 'Editar Perfil' : 'Expediente Maestro'}
+                    </h2>
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-green-500 border border-green-600"></span>
+                        Master Security Context
+                    </p>
+                    </div>
+                </div>
+                <button onClick={onClose} className="p-2.5 hover:bg-zinc-200 rounded-xl transition-all text-zinc-400 hover:text-zinc-900 border border-transparent hover:border-zinc-300"><X size={24} /></button>
+                </div>
+
+                <div className="p-10 overflow-y-auto flex-1 space-y-10 font-sans custom-scrollbar bg-zinc-50/50">
+                <div className={`grid grid-cols-1 ${mode !== 'view' ? 'lg:grid-cols-2' : ''} gap-10`}>
+                    <div className={`space-y-6 ${mode === 'view' ? 'grid grid-cols-1 md:grid-cols-2 gap-6 space-y-0' : ''}`}>
+                    <div className="relative group">
+                        <div className="flex items-center gap-2 mb-2">
+                        <label className="text-[10px] font-black text-zinc-600 uppercase tracking-wide">Nro. Documento</label>
+                        <SimpleTooltip text="Cédula de Identidad o Pasaporte"><HelpCircle size={12} className="text-zinc-400 hover:text-zinc-600 transition-colors"/></SimpleTooltip>
+                        </div>
+                        <div className="relative">
+                        <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-yellow-600 transition-colors" size={18}/>
+                        <input disabled={mode === 'view'} className={FIELD_CLASS} placeholder="Ej. 4.500.123" value={formData.documentId} onChange={e => setFormData({...formData, documentId: e.target.value})} />
+                        </div>
+                    </div>
+
+                    <div className="relative group">
+                        <div className="flex items-center gap-2 mb-2">
+                        <label className="text-[10px] font-black text-zinc-600 uppercase tracking-wide">Nombre Completo</label>
+                        </div>
+                        <div className="relative">
+                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-yellow-600 transition-colors" size={18}/>
+                        <input disabled={mode === 'view'} className={FIELD_CLASS} placeholder="Ej. Juan Pérez" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                        </div>
+                    </div>
+
+                    <div className={`relative group ${mode === 'view' ? 'md:col-span-2' : ''}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                        <label className="text-[10px] font-black text-zinc-600 uppercase tracking-wide">Email Corporativo</label>
+                        <span className="text-[9px] font-bold text-zinc-500 bg-zinc-200 px-2 py-0.5 rounded-md border border-zinc-300">Opcional</span>
+                        </div>
+                        <div className="relative">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-yellow-600 transition-colors" size={18}/>
+                        <input disabled={mode === 'view'} className={FIELD_CLASS} placeholder="usuario@familycenter.py" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                        </div>
+                    </div>
+
+                    <div className={`grid grid-cols-2 gap-4 ${mode === 'view' ? 'md:col-span-2' : ''}`}>
+                        <div className={mode === 'add' ? "col-span-2" : "col-span-1"}>
+                            <div className="flex items-center gap-2 mb-2">
+                            <label className="text-[10px] font-black text-zinc-600 uppercase tracking-wide">Rol</label>
+                            <SimpleTooltip text="Define los módulos visibles"><HelpCircle size={12} className="text-zinc-400 hover:text-zinc-600 transition-colors"/></SimpleTooltip>
+                            </div>
+                            <div className="relative">
+                            <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18}/>
+                            <select disabled={mode === 'view'} className={SELECT_CLASS} value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>{INITIAL_ROLES.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}</select>
+                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" size={16}/>
+                            </div>
+                        </div>
+                        {mode !== 'add' && (
+                            <div>
+                            <label className="text-[10px] font-black text-zinc-600 uppercase mb-2 block ml-1 tracking-wide">Estatus</label>
+                            <div className="relative">
+                                <Activity className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18}/>
+                                <select disabled={mode === 'view'} className={SELECT_CLASS} value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}><option value="ACTI">Activo</option><option value="INAC">Inactivo</option></select>
+                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" size={16}/>
+                            </div>
+                            </div>
+                        )}
+                    </div>
+                    </div>
+
+                    {mode !== 'view' && (
+                    <div className="bg-white rounded-[2.5rem] p-8 border border-zinc-300 shadow-md space-y-6 relative overflow-hidden group hover:border-yellow-500/50 transition-colors">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                        <h4 className="text-[10px] font-black text-zinc-900 uppercase flex items-center gap-2 mb-6 tracking-widest"><Lock size={14} className="text-yellow-600"/> Políticas de Credenciales</h4>
+                        
+                        <div>
+                        <label className="text-[10px] font-black text-zinc-600 uppercase mb-2 block ml-1 tracking-wide">Contraseña Nueva</label>
+                        <div className="relative">
+                            <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18}/>
+                            <input 
+                            type={showPassword ? "text" : "password"} 
+                            placeholder="Mínimo 8 caracteres" 
+                            className={FIELD_CLASS + " pr-20"} 
+                            value={formData.password} 
+                            onChange={e => setFormData({...formData, password: e.target.value})} 
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="p-2 hover:bg-zinc-100 rounded-xl text-zinc-400 transition-colors border border-transparent hover:border-zinc-200">
+                                {showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
+                            </button>
+                            <button type="button" onClick={() => setFormData({...formData, password: generateSecurePassword()})} className="p-2 hover:bg-zinc-100 rounded-xl text-zinc-400 transition-colors border border-transparent hover:border-zinc-200" title="Auto-generar">
+                                <RefreshCw size={16}/>
+                            </button>
+                            </div>
+                        </div>
+                        </div>
+                        
+                        <div>
+                        <label className="text-[10px] font-black text-zinc-600 uppercase mb-2 block ml-1 tracking-wide">Confirmar Clave</label>
+                        <div className="relative">
+                            <CheckCircle className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${pwdPolicy.match && formData.confirmPassword ? 'text-green-500' : 'text-zinc-400'}`} size={18}/>
+                            <input 
+                            type={showConfirmPassword ? "text" : "password"} 
+                            placeholder="Repita la contraseña" 
+                            className={`${FIELD_CLASS} ${formData.confirmPassword && !pwdPolicy.match ? 'border-red-300 focus:border-red-500 text-red-700 bg-red-50' : ''}`} 
+                            value={formData.confirmPassword} 
+                            onChange={e => setFormData({...formData, confirmPassword: e.target.value})} 
+                            />
+                            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-zinc-100 rounded-xl text-zinc-400 transition-colors border border-transparent hover:border-zinc-200">
+                            {showConfirmPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
+                            </button>
+                        </div>
+                        </div>
+
+                        <div className="bg-zinc-50 rounded-2xl p-4 border border-zinc-200 shadow-inner space-y-2.5">
+                            {[{ l: 'Min. 8 caracteres', ok: pwdPolicy.length }, { l: 'Paridad de clave', ok: pwdPolicy.match }].map((rule, i) => (
+                            <div key={i} className={`flex items-center gap-3 text-[10px] font-bold transition-all ${rule.ok ? 'text-green-700' : 'text-zinc-400 grayscale'}`}>
+                                <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-colors ${rule.ok ? 'border-green-500 bg-green-100' : 'border-zinc-300 bg-zinc-100'}`}>
+                                {rule.ok && <Check size={10} strokeWidth={4}/>}
+                                </div> 
+                                {rule.l}
+                            </div>
+                            ))}
+                        </div>
+                    </div>
+                    )}
+                </div>
+                
+                {mode === 'view' && (
+                    <section className="animate-slide-up border-t border-zinc-200 pt-8">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="h-px bg-zinc-300 flex-1"></div>
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-2"><History size={14}/> Trazabilidad de Eventos</h3>
+                        <div className="h-px bg-zinc-300 flex-1"></div>
+                    </div>
+                    <AuditLogTable history={formData.history} />
+                    </section>
+                )}
+                </div>
+
+                <div className="p-8 bg-white border-t border-zinc-200 flex justify-end gap-3 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+                <button onClick={onClose} className="px-8 py-4 font-bold text-zinc-500 hover:text-zinc-900 transition-all uppercase text-[10px] tracking-widest hover:bg-zinc-100 rounded-2xl border border-zinc-200">Cerrar</button>
+                {mode !== 'view' && (
+                    <button 
+                    disabled={!canSubmit}
+                    onClick={() => onSave(formData)}
+                    className="px-10 py-4 bg-zinc-900 text-white rounded-2xl font-black shadow-xl shadow-zinc-900/20 hover:bg-yellow-500 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase text-[10px] tracking-widest active:scale-95 flex items-center gap-2 border-2 border-transparent"
+                    >
+                    {mode === 'add' ? <Plus size={16}/> : <Save size={16}/>}
+                    {mode === 'add' ? 'Crear Registro' : 'Guardar Cambios'}
+                    </button>
+                )}
+                </div>
+            </div>
+            </div>
+        );
+        };
+
+        const UserDeleteModal = ({ isOpen, onClose, user, onConfirm }) => {
+        if (!isOpen || !user) return null;
+        return (
+            <div className="fixed inset-0 bg-zinc-950/90 backdrop-blur-xl z-[250] flex items-center justify-center p-4">
+            <div className="bg-white rounded-[3rem] w-full max-w-md overflow-hidden border border-zinc-300 animate-fade-in shadow-2xl">
+                <div className="bg-red-600 p-12 text-center text-white relative">
+                <div className="w-20 h-20 bg-white/20 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-inner border border-white/10"><Trash2 size={40}/></div>
+                <h3 className="text-2xl font-black tracking-tight">¿Anular Usuario?</h3>
+                <p className="text-red-100 text-[10px] font-bold uppercase tracking-widest mt-2 opacity-80">Acción Irreversible</p>
+                </div>
+                <div className="p-10 space-y-8 text-center font-sans">
+                <div className="space-y-2">
+                    <p className="text-zinc-500 text-sm font-medium">Se revocará el acceso permanentemente para:</p>
+                    <div className="bg-white p-5 rounded-3xl border-2 border-red-100 shadow-sm">
+                    <p className="font-black text-zinc-900 text-lg leading-tight">{user.name}</p>
+                    <p className="text-[10px] font-bold text-zinc-400 mt-1 uppercase tracking-wider">{user.role}</p>
+                    </div>
+                </div>
+                <div className="flex flex-col gap-3">
+                    <button onClick={() => onConfirm(user.id)} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-all shadow-xl shadow-red-600/20 active:scale-95 border-2 border-transparent">Confirmar Eliminación</button>
+                    <button onClick={onClose} className="w-full bg-white text-zinc-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-zinc-50 hover:text-zinc-700 transition-all border-2 border-zinc-200">Cancelar</button>
+                </div>
+                </div>
+            </div>
+            </div>
+        );
+        };
+
+        const ZoneEditorModal = ({ isOpen, onClose, mode, zone, onSave }) => {
+        const [formData, setFormData] = useState({ name: '', price: 0, cities: '', status: 'ACTI', history: [] });
+
+        useEffect(() => {
+            if (zone) setFormData({ ...zone, cities: zone.cities.join(', ') });
+            else setFormData({ name: '', price: 0, cities: '', status: 'ACTI', history: [] });
+        }, [zone, isOpen]);
+
+        if (!isOpen) return null;
+
+        const handleSubmit = () => {
+            const processedData = {
+            ...formData,
+            cities: formData.cities.split(',').map(c => c.trim()).filter(Boolean),
+            price: parseInt(formData.price) || 0
+            };
+            onSave(processedData);
+        };
+
+        const canSubmit = mode === 'view' || (formData.name && formData.price >= 0);
+
+        return (
+            <div className="fixed inset-0 bg-zinc-900/40 backdrop-blur-xl z-[150] flex items-center justify-center p-4">
+            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-3xl overflow-hidden border border-zinc-300 animate-fade-in flex flex-col max-h-[90vh]">
+                <div className="p-10 border-b border-zinc-200 flex justify-between items-center bg-zinc-50">
+                <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center text-yellow-500 shadow-xl shadow-zinc-900/10 border border-zinc-700">
+                    {mode === 'add' ? <MapPinned size={28}/> : <Truck size={28}/>}
+                    </div>
+                    <div>
+                    <h2 className="text-2xl font-black text-zinc-900 tracking-tight leading-none mb-1">
+                        {mode === 'add' ? 'Nueva Zona Logística' : mode === 'edit' ? 'Editar Tarifario' : 'Detalle de Zona'}
+                    </h2>
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 border border-blue-600"></span>
+                        Delivery Network
+                    </p>
+                    </div>
+                </div>
+                <button onClick={onClose} className="p-2.5 hover:bg-zinc-200 rounded-xl transition-all text-zinc-400 hover:text-zinc-900 border border-transparent hover:border-zinc-300"><X size={24} /></button>
+                </div>
+
+                <div className="p-10 overflow-y-auto flex-1 space-y-8 font-sans custom-scrollbar bg-zinc-50/50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="md:col-span-2">
+                        <label className="text-[10px] font-black text-zinc-600 uppercase mb-2 block ml-1 tracking-wide">Nombre de Zona</label>
+                        <input disabled={mode === 'view'} className={FIELD_CLASS + " px-5"} placeholder="Ej. Asunción (Centro)" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-zinc-600 uppercase mb-2 block ml-1 tracking-wide">Costo Delivery (Gs.)</label>
+                        <div className="relative">
+                        <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-yellow-600 transition-colors" size={18}/>
+                        <input disabled={mode === 'view'} type="number" step="1000" className={FIELD_CLASS + " font-mono text-xl"} value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-zinc-600 uppercase mb-2 block ml-1 tracking-wide">Estado Operativo</label>
+                        <div className="relative">
+                        <Activity className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18}/>
+                        <select disabled={mode === 'view'} className={SELECT_CLASS} value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}><option value="ACTI">Activa</option><option value="INAC">Suspendida</option></select>
+                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" size={16}/>
+                        </div>
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="text-[10px] font-black text-zinc-600 uppercase mb-2 block ml-1 tracking-wide">Ciudades Abarcadas</label>
+                        <textarea disabled={mode === 'view'} rows={2} className={`${FIELD_CLASS} resize-none px-5 py-4 font-medium`} placeholder="Separe las ciudades con comas..." value={formData.cities} onChange={e => setFormData({...formData, cities: e.target.value})} />
+                    </div>
+                </div>
+
+                {mode === 'view' && (
+                    <section className="animate-slide-up border-t border-zinc-200 pt-8">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="h-px bg-zinc-300 flex-1"></div>
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-2"><History size={14}/> Historial de Cambios</h3>
+                        <div className="h-px bg-zinc-300 flex-1"></div>
+                    </div>
+                    <AuditLogTable history={formData.history} />
+                    </section>
+                )}
+                </div>
+
+                <div className="p-8 bg-white border-t border-zinc-200 flex justify-end gap-3 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+                <button onClick={onClose} className="px-8 py-4 font-bold text-zinc-500 hover:text-zinc-900 transition-all uppercase text-[10px] tracking-widest hover:bg-zinc-100 rounded-2xl border border-zinc-200">Cerrar</button>
+                {mode !== 'view' && (
+                    <button 
+                    disabled={!canSubmit}
+                    onClick={handleSubmit}
+                    className="px-10 py-4 bg-zinc-900 text-white rounded-2xl font-black shadow-xl shadow-zinc-900/20 hover:bg-yellow-500 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase text-[10px] tracking-widest active:scale-95 flex items-center gap-2 border-2 border-transparent"
+                    >
+                    {mode === 'add' ? <Plus size={16}/> : <Save size={16}/>}
+                    {mode === 'add' ? 'Registrar Zona' : 'Guardar Cambios'}
+                    </button>
+                )}
+                </div>
+            </div>
+            </div>
+        );
+        };
+
+        const ZoneDeleteModal = ({ isOpen, onClose, zone, onConfirm }) => {
+        if (!isOpen || !zone) return null;
+        return (
+            <div className="fixed inset-0 bg-zinc-950/90 backdrop-blur-xl z-[250] flex items-center justify-center p-4">
+            <div className="bg-white rounded-[3rem] w-full max-w-md overflow-hidden border border-zinc-300 animate-fade-in shadow-2xl">
+                <div className="bg-red-600 p-12 text-center text-white relative">
+                <div className="w-20 h-20 bg-white/20 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-inner border border-white/10"><Trash2 size={40}/></div>
+                <h3 className="text-2xl font-black tracking-tight">¿Eliminar Zona?</h3>
+                <p className="text-red-100 text-[10px] font-bold uppercase tracking-widest mt-2 opacity-80">Impacto en Tarifación</p>
+                </div>
+                <div className="p-10 space-y-8 text-center font-sans">
+                <div className="space-y-2">
+                    <p className="text-zinc-500 text-sm font-medium">Se desactivará el cálculo de costos para:</p>
+                    <div className="bg-white p-5 rounded-3xl border-2 border-red-100 shadow-sm">
+                    <p className="font-black text-zinc-900 text-lg leading-tight">{zone.name}</p>
+                    <p className="text-[10px] font-bold text-zinc-400 mt-1 uppercase tracking-wider">Tarifa: Gs. {zone.price.toLocaleString()}</p>
+                    </div>
+                </div>
+                <div className="flex flex-col gap-3">
+                    <button onClick={() => onConfirm(zone.id)} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-all shadow-xl shadow-red-600/20 active:scale-95 border-2 border-transparent">Confirmar Eliminación</button>
+                    <button onClick={onClose} className="w-full bg-white text-zinc-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-zinc-50 hover:text-zinc-700 transition-all border-2 border-zinc-200">Cancelar</button>
+                </div>
+                </div>
+            </div>
+            </div>
+        );
+        };
+
+        const ZoneManagement = () => {
+        const [zones, setZones] = useState(INITIAL_ZONES);
+        const [searchTerm, setSearchTerm] = useState('');
+        const [modal, setModal] = useState({ isOpen: false, mode: 'add', data: null });
+        const [deleteModal, setDeleteModal] = useState({ isOpen: false, data: null });
+
+        const filteredZones = useMemo(() => 
+            zones.filter(z => z.name.toLowerCase().includes(searchTerm.toLowerCase()) || z.cities.some(c => c.toLowerCase().includes(searchTerm.toLowerCase()))),
+        [zones, searchTerm]);
+
+        const handleSave = (data) => {
+            if (modal.mode === 'add') {
+            const newId = zones.length > 0 ? Math.max(...zones.map(z => z.id)) + 1 : 1;
+            setZones([...zones, { ...data, id: newId, history: [{ date: formatDate(), action: 'CREATE', user: 'root', desc: 'Creación manual.' }] }]);
+            } else {
+            setZones(zones.map(z => z.id === data.id ? { ...data, history: [...(data.history || []), { date: formatDate(), action: 'UPDATE', user: 'root', desc: 'Edición de parámetros.' }] } : z));
+            }
+            setModal({ isOpen: false, mode: 'add', data: null });
+        };
+
+        return (
+            <div className="animate-fade-in space-y-8">
+            <div className="flex justify-between items-end mb-4 bg-white/40 p-10 rounded-[3rem] border border-zinc-300 shadow-sm backdrop-blur-md">
+                <div><h2 className="text-4xl font-black text-zinc-900 tracking-tight">Tarifario Logístico</h2><p className="text-zinc-500 font-bold text-xs uppercase tracking-widest mt-1">Gestión de costos y cobertura geográfica</p></div>
+                <button onClick={() => setModal({ isOpen: true, mode: 'add', data: null })} className="bg-zinc-900 text-white px-8 py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest flex items-center gap-3 hover:bg-yellow-500 hover:text-black transition-all shadow-2xl shadow-zinc-900/10 active:scale-95 border-2 border-transparent"><MapPinned size={18}/> Nueva Zona</button>
+            </div>
+
+            <div className={CARD_CLASS}>
+                <div className="p-8 border-b border-zinc-200 flex items-center gap-6 bg-zinc-50">
+                <div className="relative flex-1"><Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" size={20}/><input type="text" placeholder="Buscar por zona o ciudad..." className="w-full pl-14 pr-8 py-5 bg-white border-2 border-zinc-300 rounded-3xl text-sm font-bold outline-none focus:border-yellow-500 focus:ring-4 focus:ring-yellow-500/10 transition-all shadow-sm text-zinc-900 placeholder:text-zinc-400" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
+                <button className="p-5 border-2 border-zinc-300 rounded-[1.5rem] hover:border-zinc-900 transition-all text-zinc-400 bg-white shadow-sm"><Filter size={24}/></button>
+                </div>
+                <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                    <tr className="bg-zinc-100 text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-300">
+                        <th className="px-10 py-6 border-r border-zinc-200">Zona / Área</th>
+                        <th className="px-10 py-6 border-r border-zinc-200">Cobertura (Ciudades)</th>
+                        <th className="px-10 py-6 text-center border-r border-zinc-200">Costo (Gs.)</th>
+                        <th className="px-10 py-6 text-center border-r border-zinc-200">Estado</th>
+                        <th className="px-10 py-6 text-center">Acciones</th>
+                    </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-200">
+                    {filteredZones.map(zone => (
+                        <tr key={zone.id} className="hover:bg-yellow-50 transition-colors">
+                        <td className="px-10 py-6 border-r border-zinc-100"><p className="font-black text-zinc-900 text-lg leading-tight">{zone.name}</p></td>
+                        <td className="px-10 py-6 border-r border-zinc-100"><div className="flex flex-wrap gap-1">{zone.cities.slice(0, 3).map((c, i) => (<span key={i} className="px-2 py-0.5 bg-white rounded-md text-[10px] font-bold text-zinc-600 border border-zinc-300 uppercase shadow-sm">{c}</span>))} {zone.cities.length > 3 && <span className="text-[10px] text-zinc-400 font-bold">+{zone.cities.length - 3}</span>}</div></td>
+                        <td className="px-10 py-6 text-center border-r border-zinc-100"><span className="font-mono font-bold text-zinc-900 bg-yellow-100 px-3 py-1 rounded-lg border border-yellow-300">{zone.price.toLocaleString()}</span></td>
+                        <td className="px-10 py-6 text-center border-r border-zinc-100"><span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase border ${zone.status === 'ACTI' ? 'bg-green-100 text-green-800 border-green-300' : 'bg-red-100 text-red-800 border-red-300'}`}>{zone.status === 'ACTI' ? 'Activa' : 'Inactiva'}</span></td>
+                        <td className="px-10 py-6 text-center flex justify-center gap-3">
+                            <button onClick={() => setModal({ isOpen: true, mode: 'view', data: zone })} className="w-11 h-11 flex items-center justify-center bg-white rounded-2xl text-zinc-400 hover:text-zinc-900 transition-all border-2 border-zinc-200 hover:border-zinc-400 shadow-sm" title="Ver Detalle"><Eye size={20}/></button>
+                            <button onClick={() => setModal({ isOpen: true, mode: 'edit', data: zone })} className="w-11 h-11 flex items-center justify-center bg-white rounded-2xl text-zinc-400 hover:text-blue-600 transition-all border-2 border-zinc-200 hover:border-blue-300 shadow-sm" title="Editar"><Edit3 size={20}/></button>
+                            <button onClick={() => setDeleteModal({ isOpen: true, data: zone })} className="w-11 h-11 flex items-center justify-center bg-white rounded-2xl text-zinc-400 hover:text-red-600 transition-all border-2 border-zinc-200 hover:border-red-300 shadow-sm" title="Eliminar"><Trash2 size={20}/></button>
+                        </td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            <ZoneEditorModal isOpen={modal.isOpen} onClose={() => setModal({...modal, isOpen: false})} mode={modal.mode} zone={modal.data} onSave={handleSave} />
+            <ZoneDeleteModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, data: null })} zone={deleteModal.data} onConfirm={(id) => { setZones(zones.filter(z => z.id !== id)); setDeleteModal({ isOpen: false, data: null }); }} />
+            </div>
+        );
+        };
+
+        // --- MODULE COMPONENTS ---
+
+        const UserManagement = () => {
+        const [users, setUsers] = useState(INITIAL_USERS);
+        const [searchTerm, setSearchTerm] = useState('');
+        const [modal, setModal] = useState({ isOpen: false, mode: 'add', data: null });
+        const [deleteModal, setDeleteModal] = useState({ isOpen: false, data: null });
+
+        const handleSave = (data) => {
+            if (modal.mode === 'add') setUsers([...users, { ...data, id: users.length + 1001, lastLogin: 'Pendiente', history: [{ date: formatDate(), action: 'CREATE', user: 'root', desc: 'Auto-reg.' }] }]);
+            else setUsers(users.map(u => u.id === data.id ? data : u));
+            setModal({ isOpen: false, mode: 'add', data: null });
+        };
+
+        return (
+            <div className="animate-fade-in space-y-8">
+            <div className="flex justify-between items-end mb-4 bg-white/40 p-10 rounded-[3rem] border border-zinc-300 shadow-sm backdrop-blur-md">
+                <div><h2 className="text-4xl font-black text-zinc-900 tracking-tight">Gestión de Usuarios</h2><p className="text-zinc-500 font-bold text-xs uppercase tracking-widest mt-1">Estructura jerárquica del ecosistema FC</p></div>
+                <button onClick={() => setModal({ isOpen: true, mode: 'add', data: null })} className="bg-zinc-900 text-white px-8 py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest flex items-center gap-3 hover:bg-yellow-500 hover:text-black transition-all shadow-2xl shadow-zinc-900/10 active:scale-95 border-2 border-transparent"><UserPlus size={18}/> Nuevo Registro</button>
+            </div>
+
+            <div className={CARD_CLASS}>
+                <div className="p-8 border-b border-zinc-200 flex items-center gap-6 bg-zinc-50">
+                <div className="relative flex-1"><Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" size={20}/><input type="text" placeholder="Filtrar por nombre o cargo..." className="w-full pl-14 pr-8 py-5 bg-white border-2 border-zinc-300 rounded-3xl text-sm font-bold outline-none focus:border-yellow-500 focus:ring-4 focus:ring-yellow-500/10 transition-all shadow-sm text-zinc-900 placeholder:text-zinc-400" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
+                <button className="p-5 border-2 border-zinc-300 rounded-[1.5rem] hover:border-zinc-900 transition-all text-zinc-400 bg-white shadow-sm"><Filter size={24}/></button>
+                </div>
+                <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                    <tr className="bg-zinc-100 text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-300">
+                        <th className="px-10 py-6 border-r border-zinc-200">Identidad</th>
+                        <th className="px-10 py-6 border-r border-zinc-200">Responsabilidad</th>
+                        <th className="px-10 py-6 text-center border-r border-zinc-200">Estado</th>
+                        <th className="px-10 py-6 text-center">Gestión</th>
+                    </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-200">
+                    {users.map(user => (
+                        <tr key={user.id} className="hover:bg-yellow-50 transition-colors">
+                        <td className="px-10 py-6 border-r border-zinc-100">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-white border border-zinc-200 flex items-center justify-center font-black text-zinc-400 text-xs shadow-sm">{user.name.charAt(0)}</div>
+                                <div>
+                                    <p className="font-black text-zinc-900 text-sm leading-tight">{user.name}</p>
+                                    <p className="text-[10px] text-zinc-400 font-bold flex items-center gap-1"><CreditCard size={10}/> {user.documentId || 'S/D'}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td className="px-10 py-6 border-r border-zinc-100"><span className="px-3 py-1 bg-white border border-zinc-200 rounded-xl text-[10px] font-black text-zinc-600 uppercase tracking-wider shadow-sm">{user.role}</span></td>
+                        <td className="px-10 py-6 text-center border-r border-zinc-100"><span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase border ${user.status === 'ACTI' ? 'bg-green-100 text-green-800 border-green-300' : 'bg-red-100 text-red-800 border-red-300'}`}>{user.status === 'ACTI' ? 'Activo' : 'Inactivo'}</span></td>
+                        <td className="px-10 py-6 text-center flex justify-center gap-3">
+                            <button onClick={() => setModal({ isOpen: true, mode: 'view', data: user })} className="w-11 h-11 flex items-center justify-center bg-white rounded-2xl text-zinc-400 hover:text-zinc-900 transition-all border-2 border-zinc-200 hover:border-zinc-400 shadow-sm" title="Ver Detalle"><Eye size={20}/></button>
+                            <button onClick={() => setModal({ isOpen: true, mode: 'edit', data: user })} className="w-11 h-11 flex items-center justify-center bg-white rounded-2xl text-zinc-400 hover:text-blue-600 transition-all border-2 border-zinc-200 hover:border-blue-300 shadow-sm" title="Editar"><Edit3 size={20}/></button>
+                            <button onClick={() => setDeleteModal({ isOpen: true, data: user })} className="w-11 h-11 flex items-center justify-center bg-white rounded-2xl text-zinc-400 hover:text-red-600 transition-all border-2 border-zinc-200 hover:border-red-300 shadow-sm" title="Eliminar"><Trash2 size={20}/></button>
+                        </td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            <UserEditorModal isOpen={modal.isOpen} onClose={() => setModal({...modal, isOpen: false})} mode={modal.mode} user={modal.data} onSave={handleSave} />
+            <UserDeleteModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, data: null })} user={deleteModal.data} onConfirm={(id) => { setUsers(users.filter(u => u.id !== id)); setDeleteModal({ isOpen: false, data: null }); }} />
+            </div>
+        );
+        };
+
+        const SystemConfiguration = () => {
+        const [globalSettings, setGlobalSettings] = useState({ freeDeliveryThreshold: 500000, enableFreeDelivery: true, discountStopperThreshold: 15 });
+        const [saving, setSaving] = useState(false);
+
+        const handleSave = () => {
+            setSaving(true);
+            setTimeout(() => setSaving(false), 1000);
+        };
+
+        return (
+            <div className="animate-fade-in space-y-10 pb-20">
+            <div className="flex justify-between items-end mb-4 bg-white/40 p-10 rounded-[3rem] border border-zinc-300 shadow-sm backdrop-blur-md">
+                <div><h2 className="text-4xl font-black text-zinc-900 tracking-tight">Parámetros Globales</h2><p className="text-zinc-500 font-bold text-xs uppercase tracking-widest mt-1">Configuración estratégica del negocio</p></div>
+                <button onClick={handleSave} disabled={saving} className="bg-zinc-900 text-white px-10 py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest flex items-center gap-3 shadow-2xl active:scale-95 hover:bg-yellow-500 hover:text-black transition-all shadow-zinc-900/10 disabled:opacity-50 border-2 border-transparent">
+                {saving ? <RefreshCw className="animate-spin" size={18}/> : <Save size={18}/>}
+                {saving ? 'Guardando...' : 'Aplicar Cambios'}
+                </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="bg-white p-8 rounded-[3rem] border border-zinc-300 shadow-sm space-y-6">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-yellow-100 text-yellow-700 rounded-xl border border-yellow-200"><DollarSign size={20}/></div>
+                    <h3 className="font-black text-zinc-900 uppercase text-xs tracking-widest">Políticas Logísticas</h3>
+                </div>
+                <div className="flex items-center justify-between py-4 border-b border-zinc-200">
+                    <div><p className="text-sm font-bold text-zinc-800">Delivery Gratuito</p><p className="text-[10px] text-zinc-400 font-medium">Habilitar costo 0 según el total.</p></div>
+                    <div onClick={() => setGlobalSettings({...globalSettings, enableFreeDelivery: !globalSettings.enableFreeDelivery})} className={`w-12 h-7 rounded-full p-1 cursor-pointer transition-colors border ${globalSettings.enableFreeDelivery ? 'bg-yellow-500 border-yellow-600' : 'bg-zinc-200 border-zinc-300'}`}><div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${globalSettings.enableFreeDelivery ? 'translate-x-5' : 'translate-x-0'}`}></div></div>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase ml-1">Monto Mínimo (Gs.)</label>
+                    <input type="number" disabled={!globalSettings.enableFreeDelivery} className={`${FIELD_CLASS} disabled:opacity-50 disabled:bg-zinc-100`} value={globalSettings.freeDeliveryThreshold} onChange={e => setGlobalSettings({...globalSettings, freeDeliveryThreshold: e.target.value})} />
+                </div>
+                </div>
+
+                <div className="bg-white p-8 rounded-[3rem] border border-zinc-300 shadow-sm space-y-6">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-blue-100 text-blue-700 rounded-xl border border-blue-200"><Tag size={20}/></div>
+                    <h3 className="font-black text-zinc-900 uppercase text-xs tracking-widest">Reglas Comerciales</h3>
+                </div>
+                <div className="space-y-4">
+                    <div>
+                    <label className="text-[10px] font-black text-zinc-500 uppercase ml-1 block mb-2">Trigger de Stopper</label>
+                    <div className="relative">
+                        <input type="number" min="1" max="100" className={FIELD_CLASS} value={globalSettings.discountStopperThreshold} onChange={e => setGlobalSettings({...globalSettings, discountStopperThreshold: e.target.value})} />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 font-bold"><Percent size={14}/></span>
+                    </div>
+                    <p className="text-[10px] text-zinc-400 mt-2 font-medium">Mínimo descuento para mostrar etiqueta "OFERTA".</p>
+                    </div>
+                    <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-300 flex items-center justify-between shadow-inner">
+                        <span className="text-xs font-bold text-zinc-500">Vista Previa:</span>
+                        <span className="bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded shadow-sm border border-red-600">-{globalSettings.discountStopperThreshold}% OFF</span>
+                    </div>
+                </div>
+                </div>
+            </div>
+            </div>
+        );
+        };
+
+        const ReportsModule = () => {
+        const [activeReport, setActiveReport] = useState(null);
+        const [filters, setFilters] = useState({ 
+            dateFrom: '', dateTo: '', 
+            selectedSeller: 'ALL', 
+            status: 'ALL' 
+        });
+        const [results, setResults] = useState([]);
+
+        const uniqueSellers = useMemo(() => {
+            return [...new Set(MOCK_REPORT_DATA.map(d => d.seller))].sort();
+        }, []);
+
+        const REPORT_TYPES = [
+            { id: 'seller_orders', label: 'Pedidos por Vendedor', icon: UserCheck, desc: 'Rendimiento y volumen de ventas.' },
+            { id: 'date_orders', label: 'Pedidos por Fecha', icon: Calendar, desc: 'Flujo cronológico de operaciones.' },
+            { id: 'stock_miss', label: 'Productos no Disponibles', icon: AlertTriangle, desc: 'Análisis de demanda insatisfecha.' },
+            { id: 'deliveries', label: 'Entregas', icon: Truck, desc: 'Eficiencia logística y despachos.' }
+        ];
+
+        const handleGenerateReport = () => {
+            let data = [...MOCK_REPORT_DATA];
+            if (filters.status !== 'ALL') data = data.filter(d => d.status === filters.status.toLowerCase());
+            if (filters.selectedSeller !== 'ALL') data = data.filter(d => d.seller === filters.selectedSeller);
+            setResults(data);
+        };
+
+        const clearReport = () => {
+            setActiveReport(null);
+            setResults([]);
+            setFilters({ dateFrom: '', dateTo: '', selectedSeller: 'ALL', status: 'ALL' });
+        };
+
+        if (!activeReport) {
+            return (
+            <div className="animate-fade-in space-y-8">
+                <div className="flex justify-between items-end mb-4 bg-white/40 p-10 rounded-[3rem] border border-zinc-300 shadow-sm backdrop-blur-md">
+                <div><h2 className="text-4xl font-black text-zinc-900 tracking-tight">Reportes</h2><p className="text-zinc-500 font-bold text-xs uppercase tracking-widest mt-1">Centro de inteligencia de negocios</p></div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {REPORT_TYPES.map(rpt => (
+                    <button key={rpt.id} onClick={() => setActiveReport(rpt)} className="bg-white p-8 rounded-[3rem] border-2 border-zinc-300 shadow-sm hover:border-zinc-900 hover:shadow-xl transition-all group text-left flex flex-col justify-between h-64">
+                    <div className="w-14 h-14 bg-zinc-50 rounded-2xl flex items-center justify-center text-zinc-400 group-hover:bg-yellow-500 group-hover:text-black transition-colors border border-zinc-200 group-hover:border-yellow-600"><rpt.icon size={28}/></div>
+                    <div><h3 className="text-xl font-black text-zinc-900 leading-tight mb-2 group-hover:text-yellow-600 transition-colors">{rpt.label}</h3><p className="text-xs text-zinc-400 font-bold leading-relaxed">{rpt.desc}</p></div>
+                    </button>
+                ))}
+                </div>
+            </div>
+            );
+        }
+
+        return (
+            <div className="animate-fade-in space-y-6 h-full flex flex-col">
+            <div className="flex items-center gap-4 mb-4 bg-white/40 p-8 rounded-[3rem] border border-zinc-300 shadow-sm backdrop-blur-md">
+                <button onClick={clearReport} className="w-12 h-12 rounded-2xl bg-white border-2 border-zinc-300 flex items-center justify-center text-zinc-500 hover:bg-zinc-900 hover:text-white hover:border-zinc-900 transition-all shadow-sm"><ArrowRight className="rotate-180" size={24}/></button>
+                <div><h2 className="text-3xl font-black text-zinc-900 tracking-tight">{activeReport.label}</h2><p className="text-zinc-500 font-bold text-xs uppercase tracking-widest mt-1">Generación de informe detallado</p></div>
+            </div>
+
+            <div className="bg-white p-8 rounded-[3rem] border border-zinc-300 shadow-sm shrink-0">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                    <div className="space-y-2"><label className="text-[10px] font-black text-zinc-500 uppercase ml-1">Fecha Desde</label><input type="date" className={FIELD_CLASS + " px-4 text-sm"} value={filters.dateFrom} onChange={e => setFilters({...filters, dateFrom: e.target.value})} /></div>
+                    <div className="space-y-2"><label className="text-[10px] font-black text-zinc-500 uppercase ml-1">Fecha Hasta</label><input type="date" className={FIELD_CLASS + " px-4 text-sm"} value={filters.dateTo} onChange={e => setFilters({...filters, dateTo: e.target.value})} /></div>
+                    
+                    {['seller_orders', 'date_orders'].includes(activeReport.id) && (
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase ml-1">Vendedor</label>
+                        <div className="relative">
+                            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
+                            <select
+                                className={SELECT_CLASS + " text-sm"}
+                                value={filters.selectedSeller}
+                                onChange={e => setFilters({ ...filters, selectedSeller: e.target.value })}
+                            >
+                                <option value="ALL">Todos los vendedores</option>
+                                {uniqueSellers.map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" size={16}/>
+                        </div>
+                    </div>
+                    )}
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase ml-1">Estado</label>
+                        <div className="relative">
+                            <select className={SELECT_CLASS + " px-4 text-sm pl-4"} value={filters.status} onChange={e => setFilters({...filters, status: e.target.value})}><option value="ALL">Todos</option><option value="APPROVED">Aprobados</option><option value="DELIVERED">Entregados</option><option value="CANCELLED">Cancelados</option></select>
+                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" size={16}/>
+                        </div>
+                    </div>
+                    
+                    <button onClick={handleGenerateReport} className="bg-zinc-900 text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all shadow-xl active:scale-95 h-full border-2 border-transparent">Filtrar Resultados</button>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-[3rem] border border-zinc-300 overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
+                <div className="overflow-x-auto flex-1 custom-scrollbar p-2">
+                <table className="w-full text-left border-collapse">
+                    <thead className="bg-zinc-100 text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-300 sticky top-0 z-10 shadow-sm">
+                        <tr>
+                        <th className="px-6 py-4 border-r border-zinc-200">ID</th>
+                        <th className="px-6 py-4 border-r border-zinc-200">Fecha</th>
+                        {activeReport.id !== 'stock_miss' && <th className="px-6 py-4 border-r border-zinc-200">Cliente</th>}
+                        {['seller_orders', 'date_orders'].includes(activeReport.id) && <th className="px-6 py-4 border-r border-zinc-200">Vendedor</th>}
+                        {activeReport.id === 'stock_miss' && <th className="px-6 py-4 border-r border-zinc-200">Producto</th>}
+                        {activeReport.id === 'deliveries' && <th className="px-6 py-4 border-r border-zinc-200">Motorista</th>}
+                        <th className="px-6 py-4 text-right border-r border-zinc-200">Monto</th>
+                        <th className="px-6 py-4 text-center">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-200 text-zinc-900 font-medium text-xs">
+                        {results.length > 0 ? results.map(row => (
+                        <tr key={row.id} className="hover:bg-yellow-50 transition-colors">
+                            <td className="px-6 py-4 font-mono text-zinc-500 border-r border-zinc-100">#{row.id}</td>
+                            <td className="px-6 py-4 border-r border-zinc-100">{row.date}</td>
+                            {activeReport.id !== 'stock_miss' && <td className="px-6 py-4 font-bold border-r border-zinc-100">{row.client}</td>}
+                            {['seller_orders', 'date_orders'].includes(activeReport.id) && <td className="px-6 py-4 border-r border-zinc-100">{row.seller}</td>}
+                            {activeReport.id === 'stock_miss' && <td className="px-6 py-4 text-red-600 font-bold border-r border-zinc-100">{row.product}</td>}
+                            {activeReport.id === 'deliveries' && <td className="px-6 py-4 border-r border-zinc-100">{row.deliveryMan}</td>}
+                            <td className="px-6 py-4 text-right font-mono font-bold border-r border-zinc-100">Gs. {row.total.toLocaleString()}</td>
+                            <td className="px-6 py-4 text-center">
+                                <span className={`px-2 py-0.5 rounded-full font-black text-[9px] uppercase border ${row.status === 'delivered' ? 'bg-green-100 text-green-800 border-green-300' : row.status === 'cancelled' ? 'bg-red-100 text-red-800 border-red-300' : 'bg-zinc-100 text-zinc-700 border-zinc-300'}`}>{row.status}</span>
+                            </td>
+                        </tr>
+                        )) : (
+                        <tr><td colSpan="8" className="p-10 text-center text-zinc-400 italic">Aplique filtros para visualizar datos.</td></tr>
+                        )}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            </div>
+        );
+        };
+
+        const Login = ({ onLogin }) => {
+        const [username, setUsername] = useState('');
+        const [password, setPassword] = useState('');
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState('');
+        const handleSubmit = (e) => {
+            e.preventDefault();
+            setLoading(true);
+            setError('');
+            setTimeout(() => {
+            setLoading(false);
+            if (username.toLowerCase() === 'root' && password === 'root') onLogin('superadmin', 'SysMaster');
+            else setError('Credenciales corporativas inválidas.');
+            }, 800);
+        };
+        return (
+            <div className="min-h-screen bg-zinc-100 flex items-center justify-center p-4 relative font-sans overflow-hidden bg-grid-pattern">
+            <div className="bg-white w-full max-w-[1200px] h-auto lg:h-[750px] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col lg:flex-row relative z-10 border border-zinc-300 animate-fade-in">
+                <div className="lg:w-5/12 bg-gradient-to-br from-zinc-700 to-zinc-900 p-12 flex flex-col justify-between text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-12 opacity-10"><Box size={200}/></div>
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-8">
+                    <div className="bg-yellow-500 p-2 rounded-lg shadow-lg shadow-yellow-500/30 border border-yellow-400"><ShoppingBag size={28} className="text-zinc-900"/></div>
+                    <div className="flex flex-col"><span className="text-xl font-bold tracking-tight leading-none text-white">Family Center</span><span className="text-[10px] text-zinc-300 font-medium uppercase tracking-widest">Enterprise ERP</span></div>
+                    </div>
+                    <div className="space-y-8 mt-12">
+                    <div><h2 className="text-3xl font-extrabold text-white mb-4 leading-tight">Gestión Integral <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-600">de Ventas</span></h2><p className="text-zinc-300 text-lg leading-relaxed">Plataforma optimizada para vendedores externos. Consulta stock en tiempo real, gestiona pedidos y coordina entregas.</p></div>
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-yellow-500 backdrop-blur-sm shadow-inner"><ClipboardCheck size={24}/></div><div><h4 className="font-bold text-white text-sm">Generación de pedidos</h4><p className="text-xs text-zinc-300">Stock sincronizados</p></div></div>
+                        <div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-blue-500 backdrop-blur-sm shadow-inner"><MapPinned size={24}/></div><div><h4 className="font-bold text-white text-sm">Deliverys por zona</h4><p className="text-xs text-zinc-300">Tarifas predefinidas</p></div></div>
+                        <div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-green-500 backdrop-blur-sm shadow-inner"><Bike size={24}/></div><div><h4 className="font-bold text-white text-sm">Gestión de motorista</h4><p className="text-xs text-zinc-300">Rutas y entregas</p></div></div>
+                    </div>
+                    </div>
+                </div>
+                <div className="relative z-10 mt-12 flex justify-between items-end border-t border-zinc-500/30 pt-6"><div><p className="text-xs text-zinc-400 font-mono">Build v2.5.4-stable</p><p className="text-xs text-zinc-400">© 2026 Family Center Corp.</p></div><div className="flex gap-3 text-zinc-400"><ShieldCheck size={18} /><Lock size={18} /></div></div>
+                </div>
+                <div className="lg:w-7/12 bg-white p-12 lg:p-16 flex flex-col justify-center relative">
+                <div className="max-w-md mx-auto w-full">
+                    <div className="mb-10"><h1 className="text-4xl font-extrabold text-zinc-900 mb-2 tracking-tight">Iniciar Sesión</h1><p className="text-lg text-zinc-500 font-medium">Ingrese sus credenciales corporativas para acceder al panel.</p></div>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="space-y-2">
+                        <label className="block text-sm font-bold text-zinc-700 ml-1">Usuario</label>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><User size={20} className="text-zinc-400 group-focus-within:text-yellow-600 transition-colors"/></div>
+                            <input type="text" className={FIELD_CLASS + " pl-12"} value={username} onChange={e => setUsername(e.target.value)} placeholder="Ej. vendedor1" />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center ml-1"><label className="block text-sm font-bold text-zinc-700">Contraseña</label></div>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Lock size={20} className="text-zinc-400 group-focus-within:text-yellow-600 transition-colors"/></div>
+                            <input type="password" className={FIELD_CLASS + " pl-12"} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••••••" />
+                        </div>
+                    </div>
+                    {error && <div className="p-4 rounded-xl bg-red-50 border border-red-200 flex items-start gap-3 shadow-sm"><AlertOctagon className="text-red-600 mt-0.5" size={20}/><div><h4 className="text-sm font-bold text-red-900">Error de Autenticación</h4><p className="text-sm text-red-700">{error}</p></div></div>}
+                    <button disabled={loading} className="w-full flex justify-center items-center gap-2 py-4 px-6 border-2 border-transparent rounded-xl shadow-xl shadow-zinc-900/10 text-base font-bold text-white bg-zinc-900 hover:bg-yellow-500 hover:text-zinc-900 focus:outline-none focus:ring-4 focus:ring-offset-2 focus:ring-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-[0.99]">{loading ? <Loader2 className="animate-spin" /> : <>Acceder al Sistema <ArrowRight size={20}/></>}</button>
+                    </form>
+                    <div className="mt-10"><div className="relative"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-200"></div></div><div className="relative flex justify-center text-sm"><span className="px-4 bg-white text-zinc-400 font-medium uppercase tracking-widest text-[10px]">Accesos Rápidos (Demo)</span></div></div><div className="mt-6 grid grid-cols-1 gap-4"><button onClick={() => { setUsername('root'); setPassword('root'); }} className="flex flex-col items-center justify-center p-4 bg-white border-2 border-zinc-300 rounded-xl hover:bg-zinc-50 hover:border-zinc-500 transition-all group shadow-sm"><Settings size={20} className="text-zinc-600 mb-2 group-hover:scale-110 transition-transform"/><span className="text-xs font-bold text-zinc-800">Root Admin</span></button></div></div>
+                </div>
+                </div>
+            </div>
+            </div>
+        );
+        };
+
+        const SuperAdminDashboard = ({ onLogout, currentUser }) => {
+        const [activeTab, setActiveTab] = useState('users');
+        const sidebarItems = [{ id: 'users', label: 'Gestión Usuarios', icon: Users }, { id: 'zones', label: 'Costos Deliverys', icon: MapPinned }, { id: 'reports', label: 'Reportes', icon: FileBox }, { id: 'config', label: 'Configuración', icon: Settings }];
+        return (
+            <div className="min-h-screen bg-zinc-100 flex font-sans bg-grid-pattern overflow-hidden">
+            <aside className="w-80 bg-gradient-to-br from-zinc-700 to-zinc-900 text-zinc-400 flex flex-col sticky top-0 h-screen shadow-2xl shrink-0 p-8 border-r border-zinc-500/30 relative overflow-hidden z-10">
+                <div className="absolute top-0 right-0 p-8 opacity-5"><Box size={150}/></div>
+                <div className="flex items-center gap-4 mb-16 relative z-10">
+                <div className="bg-yellow-500 p-2 rounded-xl text-black shadow-lg shadow-yellow-500/20 border border-yellow-400"><ShieldCheck size={28}/></div>
+                <div><span className="text-white font-black text-xl tracking-tighter block leading-none">FC Master</span><span className="text-[9px] font-black text-zinc-300 uppercase tracking-widest mt-1">Admin Panel</span></div>
+                </div>
+                <nav className="flex-1 space-y-4 relative z-10">
+                {sidebarItems.map(item => (
+                    <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-5 px-6 py-5 rounded-[1.5rem] font-bold text-xs uppercase tracking-widest transition-all ${activeTab === item.id ? 'bg-yellow-500 text-zinc-900 shadow-xl shadow-yellow-500/20 scale-[1.05] border border-yellow-400' : 'bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/5 hover:border-white/20'}`}>
+                    <item.icon size={20}/> {item.label}
+                    </button>
+                ))}
+                </nav>
+                <div className="mt-auto space-y-6 relative z-10">
+                <div className="bg-black/20 p-6 rounded-[2rem] border border-white/10 backdrop-blur-sm shadow-inner">
+                    <p className="text-[9px] font-black text-zinc-400 uppercase mb-2 tracking-widest">Sesión de Administrador</p>
+                    <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center font-black text-zinc-900 text-xs shadow-lg border border-yellow-300">{currentUser.charAt(0)}</div>
+                    <p className="text-white text-sm font-bold truncate">{currentUser}</p>
+                    </div>
+                </div>
+                <button onClick={onLogout} className="w-full flex items-center justify-center gap-3 py-5 text-red-300 font-black text-[10px] uppercase tracking-widest hover:bg-red-500/10 rounded-2xl transition-all border border-transparent hover:border-red-500/20">
+                    <LogOut size={16}/> Cerrar Sesión
+                </button>
+                </div>
+            </aside>
+            <main className="flex-1 p-16 overflow-y-auto relative z-10 custom-scrollbar">
+                <div className="max-w-7xl mx-auto h-full space-y-8">
+                    {activeTab === 'users' && <UserManagement />}
+                    {activeTab === 'zones' && <ZoneManagement />}
+                    {activeTab === 'reports' && <ReportsModule />}
+                    {activeTab === 'config' && <SystemConfiguration />}
+                </div>
+            </main>
+            </div>
+        );
+        };
+
+        const App = () => {
+        const [view, setView] = useState('login');
+        const [user, setUser] = useState(null);
+        const handleLogin = (role, name) => { setUser({ role, name }); setView(role); };
+        const handleLogout = () => { setUser(null); setView('login'); };
+        
+        return (
+            <div className="min-h-screen text-zinc-900 selection:bg-yellow-200">
+            {view === 'login' ? <Login onLogin={handleLogin} /> : <SuperAdminDashboard currentUser={user.name} onLogout={handleLogout} />}
+            </div>
+        );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
