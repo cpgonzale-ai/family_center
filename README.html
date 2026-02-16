@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Family Center | ERP System</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f4f4f5; } /* zinc-100 */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+        .animate-slide-up { animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .map-pattern {
+            background-color: #e4e4e7;
+            background-image: radial-gradient(#a1a1aa 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* Tech Grid Pattern for Login */
+        .grid-pattern {
+            background-size: 40px 40px;
+            background-image: linear-gradient(to right, rgba(24, 24, 27, 0.05) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(24, 24, 27, 0.05) 1px, transparent 1px);
+        }
+    </style>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        // Amarillo Corporativo
+                        brand: {
+                            50: '#fefce8', 
+                            100: '#fef9c3', 
+                            200: '#fef08a', 
+                            300: '#fde047',
+                            400: '#facc15', 
+                            500: '#eab308', // Primary Yellow
+                            600: '#ca8a04', 
+                            700: '#a16207',
+                            800: '#854d0e', 
+                            900: '#713f12', 
+                            950: '#422006',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- GLOBAL HELPERS ---
+        const Icon = ({ name, size = 20, className = "" }) => {
+            const iconRef = useRef(null);
+            useEffect(() => {
+                if (window.lucide) {
+                    const { createElement, icons } = window.lucide;
+                    const pascalName = name.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
+                    const iconDef = icons[pascalName];
+                    if (iconDef && iconRef.current) {
+                        const svg = createElement(iconDef);
+                        svg.setAttribute('width', size);
+                        svg.setAttribute('height', size);
+                        svg.setAttribute('class', className);
+                        iconRef.current.innerHTML = '';
+                        iconRef.current.appendChild(svg);
+                    }
+                }
+            }, [name, size, className]);
+            return <span ref={iconRef} style={{ width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} />;
+        };
+
+        const getStatusColor = (status) => {
+            switch(status) {
+                case 'pending': return 'bg-brand-100 text-brand-900 border-brand-200';
+                case 'approved': return 'bg-zinc-800 text-white border-zinc-700';
+                case 'delivering': return 'bg-zinc-200 text-zinc-800 border-zinc-300';
+                case 'delivered': return 'bg-green-100 text-green-800 border-green-200';
+                case 'cancelled': case 'cancelled_timeout': return 'bg-red-100 text-red-700 border-red-200';
+                default: return 'bg-zinc-100 text-zinc-700 border-zinc-200';
+            }
+        };
+
+        const getStatusLabel = (status) => {
+            switch(status) {
+                case 'pending': return 'Pendiente';
+                case 'approved': return 'En Preparación'; 
+                case 'delivering': return 'En Camino';
+                case 'delivered': return 'Entregado';
+                case 'cancelled': return 'Anulado';
+                case 'cancelled_timeout': return 'Expirado';
+                default: return status;
+            }
+        };
+
+        // --- DATA STRUCTURES ---
+        const ZONES = [
+            { id: 1, name: 'Asunción (Centro)', price: 20000, cities: ['Asunción'] },
+            { id: 2, name: 'Asunción (Villamorra)', price: 25000, cities: ['Asunción'] },
+            { id: 3, name: 'San Lorenzo', price: 30000, cities: ['San Lorenzo'] },
+            { id: 4, name: 'Luque', price: 30000, cities: ['Luque'] },
+            { id: 5, name: 'Fernando de la Mora', price: 25000, cities: ['Fernando de la Mora'] },
+            { id: 6, name: 'Lambaré', price: 25000, cities: ['Lambaré'] },
+        ];
+
+        const STORES = [
+            { id: 'central', name: 'Casa Central', address: 'Av. Principal 123' },
+            { id: 'capuchi', name: 'Sucursal Capuchi', address: 'Calle Capuchi 456' },
+            { id: 'family', name: 'Family Center', address: 'Shopping Family' }
+        ];
+
+        const CATEGORY_HIERARCHY = [
+            { id: 'root_all', label: 'Todas las Categorías', value: 'Todos', type: 'leaf', icon: 'list' },
+            { id: 'cat_tech', label: 'Tecnología & Móviles', type: 'parent', icon: 'smartphone', children: [
+                { id: 'sub_cel', label: 'Celulares', value: 'Celulares', type: 'leaf' },
+                { id: 'sub_acc', label: 'Accesorios', value: 'Accesorios', type: 'leaf' }, 
+                { id: 'sub_tab', label: 'Tablets', value: 'Tablets', type: 'leaf' }        
+            ]},
+            { id: 'cat_wearables', label: 'Wearables & Smartwatch', type: 'parent', icon: 'watch', children: [
+                { id: 'sub_wear', label: 'Smartwatches', value: 'Wearables', type: 'leaf' },
+                { id: 'sub_bands', label: 'Smart Bands', value: 'Smart Bands', type: 'leaf' }
+            ]},
+            { id: 'cat_entertainment', label: 'Entretenimiento', type: 'parent', icon: 'gamepad-2', children: [
+                { id: 'sub_audio', label: 'Audio & Sonido', value: 'Audio', type: 'leaf' },
+                { id: 'sub_consolas', label: 'Consolas & Videojuegos', value: 'Consolas', type: 'leaf' },
+                { id: 'sub_tv', label: 'Televisores', value: 'TV', type: 'leaf' }
+            ]}
+        ];
+
+        const PRODUCTS = [
+            { id: 101, name: 'Samsung Galaxy A26', price: 1570000, image: 'smartphone', category: 'Celulares', stock: { central: 2, capuchi: 5, family: 0 }, description: 'Pantalla Super AMOLED de 6.5", Procesador Octa-Core, Batería de 5000mAh.', features: ['128GB Almacenamiento', '6GB RAM', 'Cámara 50MP'] },
+            { id: 102, name: 'Poco X7 Pro 256GB', price: 2850000, image: 'smartphone', category: 'Celulares', stock: { central: 0, capuchi: 1, family: 0 }, description: 'Rendimiento extremo con Snapdragon 8 Gen 2. Pantalla 120Hz para gaming.', features: ['256GB UFS 3.1', '8GB RAM', 'Refrigeración Líquida'] },
+            { id: 103, name: 'JBL Flip 6', price: 850000, image: 'speaker', category: 'Audio', stock: { central: 10, capuchi: 8, family: 4 }, description: 'Altavoz portátil resistente al agua IP67. Hasta 12 horas de reproducción.', features: ['Bluetooth 5.1', 'PartyBoost', 'Graves profundos'] },
+            { id: 104, name: 'Xiaomi Redmi Note 13', price: 1450000, image: 'smartphone', category: 'Celulares', stock: { central: 5, capuchi: 0, family: 2 }, description: 'El rey de la gama media. Cámara de 108MP y carga turbo de 33W.', features: ['128GB Almacenamiento', 'Pantalla AMOLED', 'Dual SIM'] },
+            { id: 105, name: 'PlayStation 5 Slim', price: 4500000, image: 'gamepad-2', category: 'Consolas', stock: { central: 2, capuchi: 2, family: 1 }, description: 'Consola de última generación. Diseño slim con lector de discos.', features: ['4K 120Hz', 'SSD 1TB', 'DualSense'] },
+            { id: 106, name: 'Apple Watch SE 2', price: 2100000, image: 'watch', category: 'Wearables', stock: { central: 4, capuchi: 0, family: 0 }, description: 'El compañero ideal para tu iPhone. Monitoreo de actividad y salud.', features: ['GPS', 'Resistente al agua', 'Detección de accidentes'] }
+        ];
+
+        // --- COMPONENTS ---
+
+        // 1. LOGIN
+        const Login = ({ onLogin }) => {
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError('');
+                setTimeout(() => {
+                    setLoading(false);
+                    if (username.toLowerCase() === 'admin' && password === 'admin') onLogin('admin', 'Administrador');
+                    else if (username.toLowerCase() === 'moto' && password === '123') onLogin('delivery', 'Logística');
+                    else if (username && password) onLogin('seller', username);
+                    else setError('Usuario o contraseña incorrectos.');
+                }, 800);
+            };
+
+            return (
+                <div className="min-h-screen bg-zinc-100 flex items-center justify-center p-4 lg:p-0 font-sans relative overflow-hidden">
+                    {/* Background Texture */}
+                    <div className="absolute inset-0 grid-pattern opacity-40"></div>
+                    <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-brand-200 blur-[150px] opacity-20 rounded-full pointer-events-none"></div>
+                    <div className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-zinc-300 blur-[150px] opacity-20 rounded-full pointer-events-none"></div>
+
+                    <div className="bg-white w-full max-w-[1200px] h-auto lg:h-[750px] rounded-3xl shadow-2xl overflow-hidden flex flex-col lg:flex-row relative z-10 animate-fade-in mx-4 border border-zinc-200">
+                        
+                        {/* LEFT PANEL */}
+                        <div className="lg:w-5/12 bg-gradient-to-br from-zinc-600 to-zinc-900 p-12 flex flex-col justify-between text-white relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-12 opacity-10"><Icon name="box" size={200} /></div>
+
+                            <div className="relative z-10">
+                                <div className="flex items-center gap-3 mb-8">
+                                    <div className="bg-brand-500 p-2 rounded-lg shadow-lg shadow-brand-500/30"><Icon name="shopping-bag" size={28} className="text-zinc-900" /></div>
+                                    <div className="flex flex-col"><span className="text-xl font-bold tracking-tight leading-none text-white">Family Center</span><span className="text-[10px] text-zinc-300 font-medium uppercase tracking-widest">Enterprise ERP</span></div>
+                                </div>
+                                <div className="space-y-8 mt-12">
+                                    <div><h2 className="text-3xl font-extrabold text-white mb-4 leading-tight">Gestión Integral <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-600">de Ventas</span></h2><p className="text-zinc-300 text-lg leading-relaxed">Plataforma optimizada para vendedores externos. Consulta stock en tiempo real, gestiona pedidos y coordina entregas.</p></div>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-brand-500 backdrop-blur-sm shadow-inner"><Icon name="clipboard-check" size={24} /></div><div><h4 className="font-bold text-white text-sm">Generación de pedidos</h4><p className="text-xs text-zinc-300">Stock sincronizados</p></div></div>
+                                        <div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-blue-500 backdrop-blur-sm shadow-inner"><Icon name="map-pinned" size={24} /></div><div><h4 className="font-bold text-white text-sm">Deliverys por zona</h4><p className="text-xs text-zinc-300">Tarifas predefinidas</p></div></div>
+                                        <div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-green-500 backdrop-blur-sm shadow-inner"><Icon name="bike" size={24} /></div><div><h4 className="font-bold text-white text-sm">Gestión de motorista</h4><p className="text-xs text-zinc-300">Rutas y entregas</p></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="relative z-10 mt-12 flex justify-between items-end border-t border-zinc-500/30 pt-6"><div><p className="text-xs text-zinc-400 font-mono">Build v2.5.4-stable</p><p className="text-xs text-zinc-400">© 2026 Family Center Corp.</p></div><div className="flex gap-3 text-zinc-400"><Icon name="shield-check" size={18} /><Icon name="lock" size={18} /></div></div>
+                        </div>
+
+                        {/* RIGHT PANEL */}
+                        <div className="lg:w-7/12 bg-white p-12 lg:p-16 flex flex-col justify-center relative">
+                            <div className="max-w-md mx-auto w-full">
+                                <div className="mb-10"><h1 className="text-4xl font-extrabold text-zinc-900 mb-2 tracking-tight">Iniciar Sesión</h1><p className="text-lg text-zinc-500 font-medium">Ingrese sus credenciales corporativas para acceder al panel.</p></div>
+                                <form onSubmit={handleSubmit} className="space-y-6">
+                                    <div className="space-y-2"><label className="block text-sm font-bold text-zinc-700 ml-1">Usuario</label><div className="relative group"><div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Icon name="user" size={20} className="text-zinc-400 group-focus-within:text-brand-600 transition-colors" /></div><input type="text" value={username} onChange={e => setUsername(e.target.value)} className="block w-full pl-12 pr-4 py-4 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent focus:bg-white transition-all text-base font-medium shadow-sm" placeholder="Ej. vendedor1" /></div></div>
+                                    <div className="space-y-2"><div className="flex justify-between items-center ml-1"><label className="block text-sm font-bold text-zinc-700">Contraseña</label></div><div className="relative group"><div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Icon name="lock" size={20} className="text-zinc-400 group-focus-within:text-brand-600 transition-colors" /></div><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="block w-full pl-12 pr-4 py-4 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent focus:bg-white transition-all text-base font-medium shadow-sm" placeholder="••••••••••••" /></div></div>
+                                    {error && <div className="p-4 rounded-xl bg-red-50 border border-red-100 flex items-start gap-3 animate-slide-up"><Icon name="alert-octagon" className="text-red-600 mt-0.5" size={20} /><div><h4 className="text-sm font-bold text-red-900">Error de Autenticación</h4><p className="text-sm text-red-700">{error}</p></div></div>}
+                                    <button type="submit" disabled={loading} className="w-full flex justify-center items-center gap-2 py-4 px-6 border border-transparent rounded-xl shadow-xl shadow-zinc-900/10 text-base font-bold text-white bg-zinc-900 hover:bg-brand-500 hover:text-zinc-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-[0.99]">{loading ? <Icon name="loader-2" className="animate-spin" /> : <>Acceder al Sistema <Icon name="arrow-right" size={20} /></>}</button>
+                                </form>
+                                <div className="mt-10">
+                                    <div className="relative"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-200"></div></div><div className="relative flex justify-center text-sm"><span className="px-4 bg-white text-zinc-400 font-medium uppercase tracking-widest text-[10px]">Accesos Rápidos (Demo)</span></div></div>
+                                    <div className="mt-6 grid grid-cols-3 gap-4">
+                                        <button onClick={() => { setUsername('vendedor1'); setPassword('123'); }} className="flex flex-col items-center justify-center p-4 bg-brand-50 border border-brand-200 rounded-xl hover:bg-brand-100 hover:border-brand-300 transition-all group"><Icon name="user" size={20} className="text-brand-600 mb-2 group-hover:scale-110 transition-transform" /><span className="text-xs font-bold text-brand-900">Vendedor</span></button>
+                                        <button onClick={() => { setUsername('admin'); setPassword('admin'); }} className="flex flex-col items-center justify-center p-4 bg-zinc-100 border border-zinc-300 rounded-xl hover:bg-zinc-200 hover:border-zinc-400 transition-all group"><Icon name="settings" size={20} className="text-zinc-600 mb-2 group-hover:scale-110 transition-transform" /><span className="text-xs font-bold text-zinc-800">Admin</span></button>
+                                        <button onClick={() => { setUsername('moto'); setPassword('123'); }} className="flex flex-col items-center justify-center p-4 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 hover:border-emerald-300 transition-all group"><Icon name="bike" size={20} className="text-emerald-600 mb-2 group-hover:scale-110 transition-transform" /><span className="text-xs font-bold text-emerald-900">Moto</span></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 2. ADMIN DASHBOARD
+        const AdminDashboard = ({ orders, onUpdateStatus, onLogout, currentUser }) => {
+            const pendingOrders = orders.filter(o => o.status === 'pending');
+            const processedOrders = orders.filter(o => o.status !== 'pending');
+
+            return (
+                <div className="min-h-screen bg-zinc-50 flex flex-col">
+                    <header className="bg-gradient-to-r from-zinc-600 to-zinc-900 text-white sticky top-0 z-50 shadow-md px-6 py-4 flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-brand-500 p-2 rounded-lg"><Icon name="package" className="text-zinc-900" /></div>
+                            <div><h1 className="font-bold text-lg leading-none">Panel de Preparación</h1><p className="text-xs text-zinc-400">Admin: {currentUser}</p></div>
+                        </div>
+                        <button onClick={onLogout} className="flex items-center gap-2 text-sm font-medium text-zinc-400 hover:text-white"><Icon name="log-out" size={18} /> Salir</button>
+                    </header>
+
+                    <main className="flex-1 p-6 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="space-y-6">
+                            <h2 className="text-lg font-bold text-zinc-800 flex items-center gap-2"><Icon name="clock" className="text-brand-600" /> Pendientes de Aprobación</h2>
+                            {pendingOrders.length === 0 ? (
+                                <div className="p-8 bg-white rounded-2xl border border-dashed border-zinc-300 text-center text-zinc-400">No hay pedidos pendientes.</div>
+                            ) : (
+                                pendingOrders.map(order => (
+                                    <div key={order.id} className="bg-white p-6 rounded-2xl shadow-sm border border-brand-200 relative overflow-hidden group hover:shadow-md transition-all">
+                                        <div className="absolute top-0 left-0 w-1 h-full bg-brand-500"></div>
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div><div className="flex items-center gap-2"><span className="text-xl font-bold text-zinc-900">#{order.id}</span><span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase border ${getStatusColor('pending')}`}>Pendiente</span></div><p className="text-sm text-zinc-500 font-medium mt-1">{order.client}</p><p className="text-xs text-zinc-400">Vendedor: {order.seller}</p></div>
+                                            <div className="text-right"><p className="text-xs font-mono text-red-500 font-bold bg-red-50 px-2 py-1 rounded flex items-center gap-1"><Icon name="timer" size={12} /> {Math.floor(order.timeLeft / 60)}:{(order.timeLeft % 60).toString().padStart(2, '0')}</p></div>
+                                        </div>
+                                        <div className="bg-zinc-50 p-3 rounded-xl border border-zinc-100 mb-4 space-y-2">
+                                            {order.items?.map((item, idx) => (<div key={idx} className="flex justify-between text-sm"><span className="text-zinc-700 font-medium">1x {item.name}</span><span className="text-zinc-500 font-mono">{(item.price/1000).toFixed(0)}k</span></div>))}
+                                            <div className="border-t border-zinc-200 pt-2 mt-2 flex justify-between font-bold text-zinc-900"><span>Total</span><span>Gs. {order.total.toLocaleString()}</span></div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3"><button onClick={() => onUpdateStatus(order.id, 'cancelled')} className="py-3 rounded-xl border border-red-200 text-red-600 font-bold text-sm hover:bg-red-50 transition-colors">ANULAR</button><button onClick={() => onUpdateStatus(order.id, 'approved')} className="py-3 rounded-xl bg-zinc-900 text-white font-bold text-sm hover:bg-brand-600 hover:text-zinc-900 transition-colors shadow-lg flex items-center justify-center gap-2"><Icon name="printer" size={16} /> IMPRIMIR Y APROBAR</button></div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        <div className="space-y-6 opacity-75">
+                            <h2 className="text-lg font-bold text-zinc-800 flex items-center gap-2"><Icon name="check-circle" className="text-green-500" /> Preparados / En Camino</h2>
+                            {processedOrders.length === 0 ? <p className="text-zinc-400 text-sm italic">Historial vacío.</p> : processedOrders.map(order => (
+                                <div key={order.id} className="bg-white p-4 rounded-xl border border-zinc-200 flex justify-between items-center">
+                                    <div><p className="font-bold text-zinc-700">#{order.id} - {order.client}</p><p className="text-xs text-zinc-500">{order.status === 'approved' ? 'Esperando retiro' : order.status === 'delivering' ? 'En ruta' : order.status === 'delivered' ? 'Entregado' : 'Anulado'}</p></div>
+                                    <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase border ${getStatusColor(order.status)}`}>{getStatusLabel(order.status)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        // 3. DELIVERY DASHBOARD
+        const DeliveryDashboard = ({ orders, onUpdateStatus, onLogout, currentUser }) => {
+            const myOrders = orders.filter(o => (o.status === 'approved' || o.status === 'delivering') && o.deliveryType === 'delivery');
+            return (
+                <div className="min-h-screen bg-zinc-100 flex flex-col">
+                    <header className="bg-gradient-to-r from-zinc-600 to-zinc-900 text-white sticky top-0 z-50 shadow-md px-6 py-4 flex justify-between items-center">
+                        <div className="flex items-center gap-3"><div className="bg-brand-500 p-2 rounded-lg"><Icon name="bike" className="text-zinc-900" /></div><div><h1 className="font-bold text-lg leading-none">Ruta de Entrega</h1><p className="text-xs text-zinc-400">Moto: {currentUser}</p></div></div>
+                        <button onClick={onLogout}><Icon name="log-out" className="text-zinc-400 hover:text-white" /></button>
+                    </header>
+                    <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-4">
+                        {myOrders.length === 0 ? (
+                            <div className="mt-10 text-center"><div className="w-20 h-20 bg-zinc-200 rounded-full flex items-center justify-center mx-auto mb-4 text-zinc-400"><Icon name="check" size={40} /></div><h2 className="text-xl font-bold text-zinc-700">Todo listo por ahora</h2><p className="text-zinc-500">No hay entregas pendientes asignadas.</p></div>
+                        ) : (
+                            myOrders.map(order => (
+                                <div key={order.id} className="bg-white rounded-2xl shadow-sm border border-zinc-200 overflow-hidden">
+                                    <div className="bg-zinc-50 p-4 border-b border-zinc-100 flex justify-between items-center"><span className="font-black text-xl text-zinc-800">#{order.id}</span><span className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase border ${getStatusColor(order.status)}`}>{getStatusLabel(order.status)}</span></div>
+                                    <div className="p-5">
+                                        <div className="mb-6"><p className="text-xs text-zinc-400 uppercase font-bold mb-1">Destino</p><p className="text-lg font-bold text-zinc-900 leading-tight mb-1">{order.address?.mainStreet}</p><p className="text-sm text-zinc-500">{order.address?.neighborhood}, {order.address?.city}</p></div>
+                                        <div className="flex gap-4 mb-6"><button className="flex-1 bg-zinc-100 text-zinc-700 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-zinc-200" onClick={() => window.open(`https://maps.google.com/?q=${order.address?.mainStreet}, ${order.address?.city}`, '_blank')}><Icon name="map" size={16} /> ABRIR MAPA</button><button className="flex-1 bg-green-50 text-green-700 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-green-100" onClick={() => window.open(`tel:${order.phone}`, '_blank')}><Icon name="phone" size={16} /> LLAMAR</button></div>
+                                        {order.status === 'approved' ? (<button onClick={() => onUpdateStatus(order.id, 'delivering')} className="w-full bg-zinc-900 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-brand-500 hover:text-zinc-900 transition-all flex items-center justify-center gap-2"><Icon name="package-check" /> INICIAR RUTA</button>) : (<div className="flex gap-3"><button onClick={() => onUpdateStatus(order.id, 'cancelled')} className="flex-1 bg-red-50 text-red-600 py-4 rounded-xl font-bold hover:bg-red-100 transition-colors">FALLIDO</button><button onClick={() => onUpdateStatus(order.id, 'delivered')} className="flex-[2] bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-green-700 transition-all flex items-center justify-center gap-2"><Icon name="check-circle-2" /> ENTREGADO</button></div>)}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </main>
+                </div>
+            );
+        };
+
+        // 4. CATEGORY SELECTOR
+        const CategorySelector = ({ selectedCategory, onSelectCategory }) => {
+            const [isOpen, setIsOpen] = useState(false);
+            const [expandedNodes, setExpandedNodes] = useState({});
+
+            const toggleExpand = (e, nodeId) => {
+                e.stopPropagation();
+                setExpandedNodes(prev => ({ ...prev, [nodeId]: !prev[nodeId] }));
+            };
+
+            const renderTree = (nodes, level = 0) => nodes.map(node => (
+                <div key={node.id} className="select-none">
+                    <div onClick={(e) => node.type === 'parent' ? toggleExpand(e, node.id) : (onSelectCategory(node.value), setIsOpen(false))}
+                        className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${node.value === selectedCategory ? 'bg-brand-500 text-zinc-900 font-medium' : 'text-zinc-600 hover:bg-zinc-50'} ${level > 0 ? 'pl-' + (4 + level * 4) : ''}`}
+                    >
+                        <div className="flex items-center gap-3">
+                            {node.icon && <Icon name={node.icon} size={18} className={node.value === selectedCategory ? 'text-zinc-900' : 'text-zinc-400'} />}
+                            <span className="text-sm">{node.label}</span>
+                        </div>
+                        {node.type === 'parent' && <Icon name="chevron-down" size={16} className={`text-zinc-400 transition-transform ${expandedNodes[node.id] ? 'rotate-180' : ''}`} />}
+                    </div>
+                    {node.type === 'parent' && expandedNodes[node.id] && node.children && (
+                        <div className="border-l border-zinc-100 ml-6">{renderTree(node.children, level + 1)}</div>
+                    )}
+                </div>
+            ));
+
+            return (
+                <div className="relative z-40 w-full sm:w-72 mb-6">
+                    <button onClick={() => setIsOpen(!isOpen)} className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 flex items-center justify-between shadow-sm hover:border-brand-500 text-zinc-700 font-medium">
+                        <span className="truncate">{selectedCategory === 'Todos' ? 'Todas las Categorías' : selectedCategory}</span>
+                        <Icon name="chevron-down" size={18} className={`transition-transform ${isOpen ? 'rotate-180 text-brand-500' : 'text-zinc-400'}`} />
+                    </button>
+                    {isOpen && (
+                        <>
+                            <div className="fixed inset-0" onClick={() => setIsOpen(false)}></div>
+                            <div className="absolute top-full left-0 mt-2 w-full bg-white border border-zinc-200 rounded-xl shadow-xl overflow-hidden max-h-96 overflow-y-auto animate-fade-in">
+                                {renderTree(CATEGORY_HIERARCHY)}
+                            </div>
+                        </>
+                    )}
+                </div>
+            );
+        };
+
+        // 5. INTERACTIVE MAP
+        const InteractiveMap = ({ addressContext, onCoordinatesSelect }) => {
+            const [mapStatus, setMapStatus] = useState('idle'); 
+            const [pinPosition, setPinPosition] = useState(null); 
+            const mapRef = useRef(null);
+
+            useEffect(() => {
+                if (addressContext.mainStreet && addressContext.city) {
+                    setMapStatus('locating');
+                    const timer = setTimeout(() => setMapStatus('ready'), 1500);
+                    return () => clearTimeout(timer);
+                }
+            }, [addressContext.mainStreet, addressContext.city]);
+
+            const handleMapClick = (e) => {
+                if (mapRef.current) {
+                    const rect = mapRef.current.getBoundingClientRect();
+                    const x = ((e.clientX - rect.left) / rect.width) * 100;
+                    const y = ((e.clientY - rect.top) / rect.height) * 100;
+                    setPinPosition({ x, y });
+                    onCoordinatesSelect({ lat: -25.29, lng: -57.60 }); 
+                }
+            };
+
+            return (
+                <div className="relative w-full h-64 bg-zinc-100 rounded-xl overflow-hidden border-2 border-zinc-200 group">
+                    <div className="absolute top-3 left-3 right-3 z-10">
+                        <div className="relative shadow-lg">
+                            <input type="text" placeholder="Buscar en el mapa..." className="w-full bg-white pl-9 pr-4 py-2 rounded-lg text-xs font-medium focus:outline-none border border-zinc-200" />
+                            <Icon name="search" size={14} className="absolute left-3 top-2.5 text-zinc-400" />
+                        </div>
+                    </div>
+                    <div ref={mapRef} onClick={handleMapClick} className={`w-full h-full cursor-crosshair relative transition-all duration-1000 map-pattern ${mapStatus === 'locating' ? 'scale-110 blur-sm' : 'scale-100 blur-0'}`}>
+                        <div className="absolute top-1/2 left-0 w-full h-px bg-zinc-300/50 -translate-y-1/2"></div>
+                        <div className="absolute top-0 left-1/2 h-full w-px bg-zinc-300/50 -translate-x-1/2"></div>
+                        {pinPosition && (
+                            <div className="absolute text-brand-600 -translate-x-1/2 -translate-y-full drop-shadow-md" style={{ left: `${pinPosition.x}%`, top: `${pinPosition.y}%` }}>
+                                <Icon name="map-pin" size={32} className="fill-current" />
+                            </div>
+                        )}
+                    </div>
+                    {pinPosition && (
+                        <div className="absolute bottom-3 right-3 bg-green-600 text-white text-[10px] px-2 py-1 rounded-md font-bold shadow-sm flex items-center gap-1">
+                            <Icon name="check" size={10} /> Coordenadas fijadas
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // 6. PRODUCT DETAIL
+        const ProductDetailView = ({ product, onBack, onAddToCart }) => {
+            const totalStock = product.stock.central + product.stock.capuchi + product.stock.family;
+            return (
+                <div className="flex flex-col h-full animate-slide-up bg-zinc-50">
+                    <div className="flex items-center gap-2 p-4 bg-white border-b border-zinc-100 sticky top-0 z-20">
+                        <button onClick={onBack} className="p-2 hover:bg-zinc-100 rounded-full transition-colors"><Icon name="arrow-left" size={24} className="text-zinc-600" /></button>
+                        <h2 className="text-lg font-bold text-zinc-800">Detalles del Producto</h2>
+                    </div>
+                    <div className="p-6 flex-1 overflow-y-auto">
+                        <div className="flex flex-col lg:flex-row gap-8 bg-white rounded-3xl shadow-sm border border-zinc-100 p-6">
+                            <div className="w-full lg:w-1/2 flex flex-col items-center justify-center bg-white border border-zinc-100 rounded-2xl min-h-[300px] p-8">
+                                <Icon name={product.image} size={120} className="text-zinc-300" />
+                                <span className="mt-6 bg-zinc-900 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">{product.category}</span>
+                            </div>
+                            <div className="w-full lg:w-1/2 flex flex-col">
+                                <h1 className="text-3xl font-black text-zinc-900 leading-tight mb-2">{product.name}</h1>
+                                <p className="text-2xl font-bold text-brand-600 mb-6">Gs. {product.price.toLocaleString()}</p>
+                                <p className="text-zinc-600 text-sm mb-6 leading-relaxed">{product.description}</p>
+                                <div className="flex flex-wrap gap-2 mb-8">{product.features.map((feat, idx) => (<span key={idx} className="bg-zinc-100 text-zinc-600 text-xs font-medium px-3 py-1.5 rounded-lg border border-zinc-200">{feat}</span>))}</div>
+                                <div className="bg-zinc-50 rounded-xl p-5 border border-zinc-200 mb-8">
+                                    <h3 className="text-xs font-bold text-zinc-500 uppercase mb-4 flex items-center gap-2"><Icon name="store" size={16} /> Disponibilidad en Tiempo Real</h3>
+                                    <div className="grid grid-cols-3 gap-4">{Object.entries(product.stock).map(([store, count]) => (<div key={store} className={`flex flex-col items-center p-3 rounded-lg border bg-white ${count > 0 ? 'border-green-200 shadow-sm' : 'border-zinc-100 opacity-50'}`}><span className="text-[10px] text-zinc-400 font-bold uppercase mb-1">{store}</span><span className={`text-2xl font-bold ${count > 0 ? 'text-green-600' : 'text-zinc-300'}`}>{count}</span></div>))}</div>
+                                    {totalStock === 0 && (<div className="mt-4 text-center text-sm text-red-600 font-bold bg-red-50 p-2 rounded-lg border border-red-100 flex items-center justify-center gap-2"><Icon name="alert-triangle" size={16} /> Sin stock disponible en la red</div>)}
+                                </div>
+                                <div className="grid grid-cols-4 gap-3 mt-auto">
+                                    <button onClick={() => alert("Copiado")} className="col-span-1 flex flex-col items-center justify-center gap-1 bg-white border border-zinc-200 text-zinc-600 py-3 rounded-xl hover:bg-zinc-50"><Icon name="share-2" size={20} /><span className="text-[10px] font-bold uppercase">Share</span></button>
+                                    <button onClick={() => window.open(`https://wa.me/?text=Consulta: ${product.name}`, '_blank')} className="col-span-1 flex flex-col items-center justify-center gap-1 bg-white border border-green-200 text-green-600 py-3 rounded-xl hover:bg-green-50"><Icon name="message-circle" size={20} /><span className="text-[10px] font-bold uppercase">WhatsApp</span></button>
+                                    <button onClick={() => onAddToCart(product)} disabled={totalStock === 0} className={`col-span-2 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg transition-all ${totalStock > 0 ? 'bg-zinc-900 text-white hover:bg-brand-500 hover:text-zinc-900' : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'}`}>{totalStock > 0 ? <><Icon name="shopping-cart" size={20} /> AGREGAR PEDIDO</> : <><Icon name="x-circle" size={20} /> AGOTADO</>}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 7. CART CHECKOUT
+        const CartCheckoutView = ({ cart, onRemoveFromCart, onAddOne, onRemoveOne, onBackToCatalog, onConfirmOrder }) => {
+            const [step, setStep] = useState(1);
+            const [deliveryType, setDeliveryType] = useState('pickup');
+            const [selectedZone, setSelectedZone] = useState(ZONES[0]);
+            const [selectedStore, setSelectedStore] = useState(null);
+            const [addressData, setAddressData] = useState({ mainStreet: '', crossStreet: '', neighborhood: '', city: ZONES[0].cities[0], coordinates: null });
+            const [formData, setFormData] = useState({ name: '', ruc: '', phone: '' });
+
+            const groupedCart = cart.reduce((acc, item) => {
+                const existing = acc.find(i => i.id === item.id);
+                if (existing) existing.quantity += 1;
+                else acc.push({ ...item, quantity: 1 });
+                return acc;
+            }, []);
+
+            const subtotal = cart.reduce((sum, item) => sum + item.price, 0);
+            const deliveryCost = deliveryType === 'pickup' ? 0 : selectedZone.price;
+            const total = subtotal + deliveryCost;
+            const displayTotal = step === 1 ? subtotal : total;
+
+            const handleNext = () => {
+                if (step === 2) {
+                    if (deliveryType === 'delivery') {
+                        if (!addressData.mainStreet || !addressData.neighborhood || !addressData.city) return alert("Complete los campos obligatorios de dirección");
+                        if (!addressData.coordinates) return alert("Marque la ubicación en el mapa");
+                    }
+                    if (deliveryType === 'pickup' && !selectedStore) return alert("Seleccione un local");
+                } else if (step === 3) {
+                    if (!formData.name || !formData.phone) return alert("Nombre y celular obligatorios");
+                } else if (step === 4) {
+                    onConfirmOrder({ ...formData, deliveryType, zone: deliveryType === 'pickup' ? { name: `Retiro: ${selectedStore.name}`, price: 0 } : selectedZone, address: deliveryType === 'delivery' ? addressData : null, total, items: cart });
+                    return;
+                }
+                setStep(step + 1);
+            };
+
+            const getStoreAvailability = (storeId) => {
+                let availableCount = 0;
+                let missingItems = [];
+                const cartCounts = {};
+                cart.forEach(item => { cartCounts[item.id] = (cartCounts[item.id] || 0) + 1; });
+                Object.keys(cartCounts).forEach(prodId => {
+                    const product = cart.find(p => p.id === parseInt(prodId));
+                    const required = cartCounts[prodId];
+                    const available = product.stock[storeId] || 0;
+                    if (available >= required) availableCount += required;
+                    else { availableCount += available; missingItems.push(product.name); }
+                });
+                return { isFullyAvailable: missingItems.length === 0, missingItems, availableCount, totalItems: cart.length };
+            };
+
+            return (
+                <div className="flex flex-col h-full animate-slide-up max-w-4xl mx-auto bg-zinc-50">
+                    <div className="bg-white p-4 border-b border-zinc-100 sticky top-0 z-20">
+                        <div className="flex items-center gap-2 mb-4"><button onClick={step === 1 ? onBackToCatalog : () => setStep(step - 1)} className="p-2 hover:bg-zinc-100 rounded-full text-zinc-600"><Icon name="arrow-left" size={24} /></button><h2 className="text-xl font-bold text-zinc-800">{step === 1 ? "1. Revisar Productos" : step === 2 ? "2. Logística y Ubicación" : step === 3 ? "3. Datos de Facturación" : "4. Confirmar"}</h2></div>
+                        <div className="flex gap-2"><div className={`h-2 flex-1 rounded-full transition-colors ${step >= 1 ? 'bg-brand-500' : 'bg-zinc-200'}`}></div><div className={`h-2 flex-1 rounded-full transition-colors ${step >= 2 ? 'bg-brand-500' : 'bg-zinc-200'}`}></div><div className={`h-2 flex-1 rounded-full transition-colors ${step >= 3 ? 'bg-brand-500' : 'bg-zinc-200'}`}></div><div className={`h-2 flex-1 rounded-full transition-colors ${step >= 4 ? 'bg-brand-500' : 'bg-zinc-200'}`}></div></div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6">
+                        {step === 1 && (
+                            <div className="space-y-4">
+                                {groupedCart.length === 0 ? (
+                                    <div className="text-center py-20 text-zinc-400">Carrito vacío</div>
+                                ) : (
+                                    groupedCart.map(item => (
+                                        <div key={item.id} className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                                            {/* Left: Product Info */}
+                                            <div className="flex items-center gap-4 w-full sm:w-auto self-start sm:self-center">
+                                                <div className="w-12 h-12 bg-white border border-zinc-100 rounded-lg flex items-center justify-center shrink-0">
+                                                    <Icon name={item.image} size={24} className="text-zinc-400" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h4 className="font-bold text-zinc-800 text-sm truncate max-w-[150px] sm:max-w-xs">{item.name}</h4>
+                                                    <p className="text-xs text-zinc-400">{item.category}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Right: Metrics & Actions (Fixed Widths for Alignment) */}
+                                            <div className="flex items-center justify-between w-full sm:w-auto gap-4 sm:gap-6">
+                                                {/* Quantity */}
+                                                <div className="flex items-center gap-2 bg-zinc-50 rounded-lg p-1 border border-zinc-100">
+                                                    <button onClick={() => onRemoveOne(item.id)} className="w-7 h-7 bg-white rounded shadow-sm text-zinc-600 flex items-center justify-center hover:bg-zinc-100"><Icon name="minus" size={14} /></button>
+                                                    <span className="font-bold text-sm w-6 text-center text-zinc-700">{item.quantity}</span>
+                                                    <button onClick={() => onAddOne(item)} className="w-7 h-7 bg-white rounded shadow-sm text-zinc-600 flex items-center justify-center hover:bg-zinc-100"><Icon name="plus" size={14} /></button>
+                                                </div>
+                                                
+                                                {/* Unit Price (Hidden on very small screens, visible on SM+) */}
+                                                <div className="text-right w-32 hidden sm:block">
+                                                    <p className="text-[10px] text-zinc-400 uppercase font-bold">Precio Unitario</p>
+                                                    <p className="text-xs font-medium text-zinc-600">Gs. {item.price.toLocaleString()}</p>
+                                                </div>
+
+                                                {/* Total Price */}
+                                                <div className="text-right w-24">
+                                                    <p className="text-[10px] text-zinc-400 uppercase font-bold">Total</p>
+                                                    <p className="font-bold text-zinc-900 text-sm">Gs. {(item.price * item.quantity).toLocaleString()}</p>
+                                                </div>
+
+                                                {/* Delete */}
+                                                <button onClick={() => onRemoveFromCart(item.id)} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Eliminar">
+                                                    <Icon name="trash-2" size={18} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+                        {step === 2 && (
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button onClick={() => setDeliveryType('pickup')} className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${deliveryType === 'pickup' ? 'border-brand-500 bg-brand-500 text-white' : 'border-zinc-200 bg-white'}`}><Icon name="store" size={32} /><span className="font-bold text-sm">Retiro en Local</span></button>
+                                    <button onClick={() => setDeliveryType('delivery')} className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${deliveryType === 'delivery' ? 'border-brand-500 bg-brand-500 text-white' : 'border-zinc-200 bg-white'}`}><Icon name="truck" size={32} /><span className="font-bold text-sm">Delivery</span></button>
+                                </div>
+                                {deliveryType === 'delivery' && (
+                                    <div className="space-y-4 animate-fade-in">
+                                        {/* Zona de Cobertura */}
+                                        <div>
+                                            <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Zona de Cobertura <span className="text-red-500">*</span></label>
+                                            <select className="w-full border border-zinc-300 rounded-xl p-3 bg-white text-zinc-800" value={selectedZone.id} onChange={(e) => {
+                                                const z = ZONES.find(z => z.id === parseInt(e.target.value));
+                                                setSelectedZone(z);
+                                                setAddressData(prev => ({ ...prev, city: z.cities[0] }));
+                                            }}>
+                                                {ZONES.map(z => <option key={z.id} value={z.id}>{z.name} - Gs. {z.price.toLocaleString()}</option>)}
+                                            </select>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Ciudad */}
+                                            <div>
+                                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Ciudad <span className="text-red-500">*</span></label>
+                                                <select className="w-full border border-zinc-300 rounded-xl p-3 bg-white text-zinc-800" value={addressData.city} onChange={(e) => setAddressData({...addressData, city: e.target.value})}>
+                                                    {selectedZone.cities.map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                            </div>
+                                            
+                                            {/* Barrio */}
+                                            <div>
+                                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Barrio <span className="text-red-500">*</span></label>
+                                                <input type="text" className="w-full border border-zinc-300 rounded-xl p-3 placeholder-zinc-400" placeholder="Ej. Villa Morra" value={addressData.neighborhood} onChange={(e) => setAddressData({...addressData, neighborhood: e.target.value})} />
+                                            </div>
+
+                                            {/* Calle Principal */}
+                                            <div>
+                                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Calle Principal</label>
+                                                <input type="text" className="w-full border border-zinc-300 rounded-xl p-3 placeholder-zinc-400" placeholder="Ej. Av. Mcal López" value={addressData.mainStreet} onChange={(e) => setAddressData({...addressData, mainStreet: e.target.value})} />
+                                            </div>
+
+                                            {/* Calle Lateral */}
+                                            <div>
+                                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Calle Lateral</label>
+                                                <input type="text" className="w-full border border-zinc-300 rounded-xl p-3 placeholder-zinc-400" placeholder="Ej. San Martín" value={addressData.crossStreet} onChange={(e) => setAddressData({...addressData, crossStreet: e.target.value})} />
+                                            </div>
+
+                                            {/* Nro de Casa */}
+                                            <div>
+                                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">N° de Casa</label>
+                                                <input type="text" className="w-full border border-zinc-300 rounded-xl p-3 placeholder-zinc-400" placeholder="Ej. 1234" value={addressData.houseNumber} onChange={(e) => setAddressData({...addressData, houseNumber: e.target.value})} />
+                                            </div>
+
+                                            {/* Referencia */}
+                                            <div>
+                                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Referencia</label>
+                                                <input type="text" className="w-full border border-zinc-300 rounded-xl p-3 placeholder-zinc-400" placeholder="Ej. Portón gris, al lado de la farmacia" value={addressData.reference} onChange={(e) => setAddressData({...addressData, reference: e.target.value})} />
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-2"><label className="block text-sm font-bold text-zinc-700 mb-2">Ubicación Exacta (Click en Mapa) <span className="text-red-500">*</span></label><InteractiveMap addressContext={addressData} onCoordinatesSelect={(coords) => setAddressData({...addressData, coordinates: coords})} /></div>
+                                    </div>
+                                )}
+                                {deliveryType === 'pickup' && (
+                                    <div className="space-y-3 animate-fade-in">
+                                        <p className="text-sm font-bold text-zinc-700">Selecciona sucursal:</p>
+                                        {STORES.map(store => {
+                                            const availability = getStoreAvailability(store.id);
+                                            const isSelected = selectedStore?.id === store.id;
+                                            return (
+                                                <div key={store.id} onClick={() => setSelectedStore(store)} className={`relative p-4 rounded-xl border-2 cursor-pointer ${isSelected ? 'border-brand-500 bg-white shadow-md' : 'border-zinc-100 bg-white hover:border-zinc-300'}`}>
+                                                    <div className="flex justify-between items-start"><div><h4 className="font-bold text-zinc-800">{store.name}</h4><p className="text-xs text-zinc-500">{store.address}</p></div>{isSelected && <Icon name="check-circle" className="text-brand-500" />}</div>
+                                                    <div className="mt-2 pt-2 border-t border-dashed border-zinc-200">
+                                                        {availability.isFullyAvailable ? <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded w-fit"><Icon name="check" size={12} /> Stock Disponible ({availability.availableCount}/{availability.totalItems})</span> : <span className="flex items-center gap-1 text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded w-fit"><Icon name="alert-triangle" size={12} /> Stock Incompleto (Falta: {availability.missingItems.join(', ')})</span>}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {step === 3 && (
+                            <div className="bg-white p-8 rounded-3xl border border-zinc-200 shadow-sm animate-fade-in">
+                                <div className="space-y-5">
+                                    <div>
+                                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-2 ml-1">Razón Social / Nombre <span className="text-red-500">*</span></label>
+                                        <div className="relative group">
+                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Icon name="user" size={20} className="text-zinc-400 group-focus-within:text-brand-500 transition-colors" /></div>
+                                            <input type="text" className="block w-full pl-12 pr-4 py-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent focus:bg-white transition-all font-medium" placeholder="Ej. Juan Pérez S.A." value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-2 ml-1">Teléfono / WhatsApp <span className="text-red-500">*</span></label>
+                                        <div className="relative group">
+                                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Icon name="smartphone" size={20} className="text-zinc-400 group-focus-within:text-brand-500 transition-colors" /></div>
+                                            <input type="tel" className="block w-full pl-12 pr-4 py-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent focus:bg-white transition-all font-medium" placeholder="Ej. 0981 999 999" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-2 ml-1">RUC / Cédula</label>
+                                        <div className="relative group">
+                                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Icon name="file-text" size={20} className="text-zinc-400 group-focus-within:text-brand-500 transition-colors" /></div>
+                                            <input type="text" className="block w-full pl-12 pr-4 py-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent focus:bg-white transition-all font-medium" placeholder="Ej. 8001234-5" value={formData.ruc} onChange={(e) => setFormData({...formData, ruc: e.target.value})} />
+                                        </div>
+                                        <p className="text-[10px] text-zinc-400 mt-1 ml-1">Si se deja vacío se emitirá a "Sin Nombre"</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {step === 4 && (
+                            <div className="space-y-6">
+                                <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm">
+                                    <h3 className="flex items-center gap-2 font-bold text-zinc-700 mb-4 pb-2 border-b border-zinc-100">
+                                        <Icon name="package" className="text-brand-600" /> Verificación de Stock (ERP)
+                                    </h3>
+                                    {groupedCart.map((item, idx) => {
+                                        const stockAvailable = deliveryType === 'pickup' && selectedStore 
+                                            ? item.stock[selectedStore.id] 
+                                            : (item.stock.central + item.stock.capuchi + item.stock.family);
+                                        const hasStock = stockAvailable >= item.quantity;
+                                        
+                                        return (
+                                            <div key={idx} className="flex justify-between items-start text-sm mb-3 pb-2 border-b border-zinc-50 last:border-0 last:pb-0 last:mb-0">
+                                                <div className="flex-1 pr-4">
+                                                    <div className="flex gap-2 text-zinc-800 font-medium">
+                                                        <span className="text-brand-600 font-bold">x{item.quantity}</span>
+                                                        <span>{item.name}</span>
+                                                    </div>
+                                                    <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+                                                         {hasStock ? (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-100 font-bold">
+                                                                <Icon name="check" size={10} /> Stock en red: {stockAvailable}
+                                                            </span>
+                                                         ) : (
+                                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-100 font-bold animate-pulse">
+                                                                <Icon name="x-circle" size={10} /> Sin Stock suficiente ({stockAvailable})
+                                                            </span>
+                                                         )}
+                                                    </div>
+                                                </div>
+                                                <span className="font-bold text-zinc-900 whitespace-nowrap">Gs. {(item.price * item.quantity).toLocaleString()}</span>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                                <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm"><h3 className="flex items-center gap-2 font-bold text-zinc-700 mb-4 pb-2 border-b border-zinc-100"><Icon name="truck" className="text-brand-600" /> Entrega</h3><p className="text-sm font-bold">{deliveryType === 'delivery' ? addressData.mainStreet : `Retiro: ${selectedStore?.name}`}</p><p className="text-sm text-zinc-500">{deliveryType === 'delivery' ? `${addressData.neighborhood}, ${addressData.city}` : selectedStore?.address}</p></div>
+                                <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm"><h3 className="flex items-center gap-2 font-bold text-zinc-700 mb-4 pb-2 border-b border-zinc-100"><Icon name="receipt" className="text-brand-600" /> Facturación</h3><div className="grid grid-cols-2 gap-4 text-sm"><div><p className="text-xs text-zinc-400 font-bold uppercase">Cliente</p><p className="font-bold">{formData.name}</p></div><div><p className="text-xs text-zinc-400 font-bold uppercase">Celular</p><p className="font-bold">{formData.phone}</p></div></div></div>
+                            </div>
+                        )}
+                    </div>
+                    <div className="p-6 border-t border-zinc-100 bg-white">
+                        <div className="flex justify-between items-end mb-4">
+                            <div className="text-sm text-zinc-500">
+                                <p>Subtotal: Gs. {subtotal.toLocaleString()}</p>
+                                {step > 1 && <p>Delivery: Gs. {deliveryCost.toLocaleString()}</p>}
+                            </div>
+                            <div className="text-right"><p className="text-xs text-zinc-400 uppercase font-bold">Total</p><p className="text-2xl font-black text-zinc-900 leading-none">Gs. {displayTotal.toLocaleString()}</p></div>
+                        </div>
+                        <div className="flex gap-3">
+                            {step > 1 && (
+                                <button onClick={() => setStep(step - 1)} className="w-1/3 bg-white border-2 border-zinc-100 text-zinc-500 py-4 rounded-xl font-bold hover:bg-zinc-50 hover:text-zinc-800 transition-all">Atrás</button>
+                            )}
+                            <button 
+                                onClick={handleNext} 
+                                disabled={cart.length === 0 || (step === 4 && !getStoreAvailability(selectedStore?.id || 'central').isFullyAvailable && deliveryType === 'pickup')} 
+                                className={`flex-1 bg-zinc-900 text-white py-4 rounded-xl font-bold hover:bg-brand-500 hover:text-zinc-900 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 ${step === 4 ? '' : ''}`}
+                            >
+                                {step === 4 ? <><Icon name="check-circle" size={20} /> CONFIRMAR</> : <><span className="mr-1">Siguiente</span> <Icon name="chevron-right" size={20} /></>}</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const SellerDashboard = ({ currentUser, products, onCreateOrder, cart, setCart, onLogout, allOrders }) => {
+            const [view, setView] = useState('catalog');
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedCategory, setSelectedCategory] = useState('Todos');
+            const [selectedProduct, setSelectedProduct] = useState(null);
+            const [selectedOrder, setSelectedOrder] = useState(null);
+            const [lastOrder, setLastOrder] = useState(null);
+
+            const filteredProducts = products.filter(p => (selectedCategory === 'Todos' || p.category === selectedCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+            const myOrders = allOrders.filter(o => o.seller === currentUser);
+
+            const addToCart = (p) => {
+                setCart([...cart, p]);
+                alert("Agregado al carrito");
+            };
+
+            return (
+                <div className="min-h-screen bg-zinc-50 flex flex-col">
+                    <header className="bg-gradient-to-r from-zinc-600 to-zinc-900 text-white sticky top-0 z-50 shadow-md">
+                        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+                            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('catalog')}>
+                                <div className="bg-brand-500 p-1.5 rounded font-bold text-zinc-900">FC</div>
+                                <span className="font-semibold hidden lg:block">Family Center</span>
+                            </div>
+                            {view === 'catalog' && (
+                                <div className="flex-1 max-w-lg mx-4 relative">
+                                    <input type="text" placeholder="Buscar..." className="w-full bg-zinc-800 text-white px-4 py-2 pl-10 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                                    <Icon name="search" size={16} className="absolute left-3 top-3 text-zinc-400" />
+                                </div>
+                            )}
+                            <div className="flex gap-3 items-center">
+                                <button onClick={() => setView('catalog')} className={`p-2 rounded ${view === 'catalog' ? 'bg-zinc-700' : ''}`}><Icon name="store" /></button>
+                                <button onClick={() => setView('history')} className={`p-2 rounded ${view === 'history' ? 'bg-zinc-700' : ''}`}><Icon name="list" /></button>
+                                <button onClick={() => setView('cart')} className="relative p-2 bg-brand-500 rounded-full text-zinc-900">
+                                    <Icon name="shopping-cart" />
+                                    {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full border-2 border-zinc-900">{cart.length}</span>}
+                                </button>
+                                <button onClick={onLogout}><Icon name="log-out" className="text-zinc-400 hover:text-white" /></button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="flex-1 p-4 max-w-7xl mx-auto w-full">
+                        {view === 'catalog' && (
+                            <div className="space-y-6">
+                                <CategorySelector selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    {filteredProducts.map(p => {
+                                        const stock = p.stock.central + p.stock.capuchi + p.stock.family;
+                                        return (
+                                            <div key={p.id} onClick={() => { setSelectedProduct(p); setView('product_detail'); }} className="bg-white rounded-xl shadow-sm border border-zinc-100 overflow-hidden cursor-pointer hover:shadow-lg transition-all group">
+                                                <div className="h-48 bg-white flex items-center justify-center relative border-b border-zinc-50">
+                                                    <Icon name={p.image} size={48} className="text-zinc-300 group-hover:scale-110 transition-transform" />
+                                                    <span className="absolute bottom-2 left-2 bg-zinc-900/80 text-white text-[10px] px-2 py-1 rounded">{p.category}</span>
+                                                    {stock > 0 ? <span className="absolute top-2 right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded font-bold border border-green-200">Stock: {stock}</span> : <span className="absolute top-2 right-2 bg-red-100 text-red-800 text-xs px-2 py-1 rounded font-bold">Agotado</span>}
+                                                </div>
+                                                <div className="p-4">
+                                                    <h3 className="font-bold text-zinc-800 leading-tight mb-2 truncate">{p.name}</h3>
+                                                    <div className="flex justify-between items-center mt-4">
+                                                        <p className="font-bold text-lg text-zinc-900">Gs. {p.price.toLocaleString()}</p>
+                                                        <button onClick={(e) => { e.stopPropagation(); addToCart(p); }} disabled={stock === 0} className="p-2 bg-zinc-100 rounded-lg hover:bg-zinc-900 hover:text-white transition-colors disabled:opacity-50"><Icon name="shopping-cart" size={18} /></button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'product_detail' && selectedProduct && <ProductDetailView product={selectedProduct} onBack={() => setView('catalog')} onAddToCart={(p) => { addToCart(p); }} />}
+                        
+                        {view === 'cart' && (
+                            <CartCheckoutView 
+                                cart={cart} 
+                                onRemoveFromCart={(id) => setCart(cart.filter(i => i.id !== id))} 
+                                onAddOne={(item) => setCart([...cart, item])}
+                                onRemoveOne={(id) => { const idx = cart.findIndex(i => i.id === id); if(idx > -1) { const newC = [...cart]; newC.splice(idx, 1); setCart(newC); } }}
+                                onBackToCatalog={() => setView('catalog')}
+                                onConfirmOrder={(orderData) => {
+                                    const newOrder = { 
+                                        ...orderData, 
+                                        id: Math.floor(100000 + Math.random() * 900000), 
+                                        status: 'pending', 
+                                        timestamp: new Date(), 
+                                        seller: currentUser, 
+                                        timeLeft: 900 
+                                    };
+                                    onCreateOrder(newOrder);
+                                    setCart([]);
+                                    setLastOrder(newOrder);
+                                    setView('success');
+                                }}
+                            />
+                        )}
+
+                        {view === 'success' && lastOrder && (
+                            <div className="flex flex-col items-center justify-center min-h-[60vh] animate-slide-up">
+                                <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md border-t-8 border-green-500">
+                                    <div className="mx-auto bg-green-100 w-24 h-24 rounded-full flex items-center justify-center mb-6"><Icon name="check-circle" size={48} className="text-green-600" /></div>
+                                    <h2 className="text-2xl font-bold text-zinc-800 mb-2">¡Pedido Generado!</h2>
+                                    <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-200 mb-8"><p className="text-xs text-zinc-400 uppercase font-bold">Código</p><p className="text-4xl font-black text-zinc-900">#{lastOrder.id}</p></div>
+                                    <button onClick={() => setView('history')} className="w-full bg-zinc-900 text-white font-bold py-3 rounded-xl hover:bg-zinc-800 mb-3">Ver mis pedidos</button>
+                                    <button onClick={() => setView('catalog')} className="w-full bg-white border-2 border-zinc-200 text-zinc-600 font-bold py-3 rounded-xl hover:bg-zinc-50">Volver al Catálogo</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'history' && (
+                            <div className="animate-slide-up">
+                                <div className="flex items-center gap-4 mb-6"><button onClick={() => setView('catalog')} className="p-2 hover:bg-zinc-200 rounded-full"><Icon name="arrow-left" /></button><h2 className="text-2xl font-bold">Mis Pedidos</h2></div>
+                                <div className="space-y-3">
+                                    {myOrders.map(o => (
+                                        <div key={o.id} onClick={() => { setSelectedOrder(o); setView('order_detail'); }} className="bg-white p-4 rounded-xl shadow-sm border border-zinc-200 cursor-pointer hover:border-brand-300 transition-all">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <div className="flex items-center gap-2"><span className="font-bold text-zinc-800">#{o.id}</span><span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getStatusColor(o.status)}`}>{getStatusLabel(o.status)}</span></div>
+                                                <Icon name="chevron-right" className="text-zinc-300" />
+                                            </div>
+                                            <p className="text-sm font-medium text-zinc-600">{o.client}</p>
+                                            <div className="flex justify-between mt-2 text-xs text-zinc-400"><span>{o.timestamp.toLocaleDateString()}</span><span className="font-bold text-zinc-900">Gs. {o.total.toLocaleString()}</span></div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'order_detail' && selectedOrder && <OrderDetailView order={selectedOrder} onBack={() => setView('history')} />}
+                    </main>
+                </div>
+            );
+        };
+
+        // --- APP ORCHESTRATOR ---
+        const App = () => {
+            const [view, setView] = useState('login');
+            const [user, setUser] = useState(null); 
+            const [orders, setOrders] = useState([]);
+            const [cart, setCart] = useState([]);
+
+            useEffect(() => {
+                const timer = setInterval(() => {
+                    setOrders(prev => prev.map(o => {
+                        if (o.status === 'pending') {
+                            if (o.timeLeft <= 0) return { ...o, status: 'cancelled_timeout' };
+                            return { ...o, timeLeft: o.timeLeft - 1 };
+                        }
+                        return o;
+                    }));
+                }, 1000);
+                return () => clearInterval(timer);
+            }, []);
+
+            const handleLogin = (role, name) => { setUser({ role, name }); setView(role); };
+            const handleLogout = () => { setUser(null); setView('login'); };
+            const handleUpdateStatus = (id, status) => { setOrders(orders.map(o => o.id === id ? { ...o, status } : o)); };
+
+            if (view === 'login') return <Login onLogin={handleLogin} />;
+            if (user?.role === 'seller') return <SellerDashboard currentUser={user.name} products={PRODUCTS} cart={cart} setCart={setCart} onLogout={handleLogout} onCreateOrder={o => setOrders(prev => [o, ...prev])} allOrders={orders} />;
+            if (user?.role === 'admin') return <AdminDashboard orders={orders} onUpdateStatus={handleUpdateStatus} onLogout={handleLogout} currentUser={user.name} />;
+            if (user?.role === 'delivery') return <DeliveryDashboard orders={orders} onUpdateStatus={handleUpdateStatus} onLogout={handleLogout} currentUser={user.name} />;
+            
+            return null;
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
